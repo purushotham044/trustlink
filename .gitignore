@@ -1,0 +1,43 @@
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Dependencies
+node_modules/
+
+# Environment secrets — NEVER commit these
+.env
+.env.local
+.env.production
+.env.staging
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Blockchain private keys — ABSOLUTELY NEVER commit
+*.key
+*.pem
+private_key.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+android/
+ios/
+
+# TypeScript
+*.tsbuildinfo
