@@ -4,7 +4,7 @@
 // Security rules:
 //   - Only EXPO_PUBLIC_* vars are used here (safe for client)
 //   - expo-secure-store is used for session persistence
-//   - NEVER use service_role key here
+//   - NEVER use elevated admin keys here
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';

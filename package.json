@@ -32,11 +32,14 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/pg": "^8.21.0",
     "@types/react": "~19.1.10",
     "babel-plugin-module-resolver": "^5.0.3",
+    "jest": "^29.7.0",
     "pg": "^8.23.0",
     "solc": "^0.8.20",
+    "ts-jest": "^29.2.5",
     "typescript": "~5.9.2"
   },
   "scripts": {
@@ -44,7 +47,13 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "deploy:contract": "node scripts/deploy.js"
+    "deploy:contract": "node scripts/deploy.js",
+    "test": "jest",
+    "test:all": "node scripts/run-all-tests.js",
+    "test:load": "node scripts/load-test.js",
+    "test:security": "node scripts/security-audit.js",
+    "test:appium": "node scripts/appium-test.js",
+    "test:selenium": "node scripts/selenium-test.js"
   },
   "private": true
 }

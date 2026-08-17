@@ -97,6 +97,18 @@ export const ALLOWED_MIME_TYPES = [
   'text/plain',
 ];
 
+export const FILE_ICONS: Record<string, string> = {
+  'application/pdf': 'file-pdf-box',
+  'application/msword': 'file-word-box',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'file-word-box',
+  'application/vnd.ms-excel': 'file-excel-box',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'file-excel-box',
+  'image/jpeg': 'file-image',
+  'image/png': 'file-image',
+  'image/webp': 'file-image',
+  'text/plain': 'file-document-outline',
+};
+
 // ── Blockchain Configuration ─────────────────────────────────
 
 export const BLOCKCHAIN_NETWORK = 'Ethereum Sepolia';
@@ -105,6 +117,15 @@ export const BLOCKCHAIN_EXPLORER_BASE = 'https://sepolia.etherscan.io/tx/';
 // ── Storage ──────────────────────────────────────────────────
 
 export const STORAGE_BUCKET = 'documents';
+
+// ── Sharing Configuration ────────────────────────────────────
+
+export const SHARE_DURATIONS: Record<string, number | null> = {
+  '1_HOUR': 3600,
+  '24_HOURS': 86400,
+  '7_DAYS': 604800,
+  'NEVER': null,
+};
 
 // ── Audit Actions ────────────────────────────────────────────
 
@@ -122,3 +143,5 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   BLOCKCHAIN_ANCHORED: 'Hash anchored to blockchain',
   BLOCKCHAIN_ANCHOR_FAILED: 'Blockchain anchoring failed',
 };
+
+

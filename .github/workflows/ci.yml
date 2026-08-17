@@ -1,0 +1,162 @@
+name: TrustLink CI/CD & Automated QA Suite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  setup-node:
+    name: setup-node
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Run TypeScript Validation
+        run: npx tsc --noEmit
+
+      - name: Run Jest Unit & Integration Tests (300+ Test Cases)
+        run: npm test -- --colors --ci
+
+  selenium-tests:
+    name: selenium-tests
+    needs: setup-node
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Run Selenium Web Automation
+        run: node scripts/selenium-test.js
+
+      - name: Upload Selenium Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-report
+          path: reports/selenium-report.json
+
+  appium-tests:
+    name: appium-tests
+    needs: setup-node
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Run Appium Mobile E2E Simulation
+        run: node scripts/appium-test.js
+
+      - name: Upload Appium Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appium-report
+          path: reports/appium-report.json
+
+  load-tests:
+    name: load-tests
+    needs: setup-node
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Run Load & Latency Performance Benchmarks
+        run: node scripts/load-test.js
+
+      - name: Upload Load Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-report
+          path: reports/load-report.json
+
+  security-assessment:
+    name: security-assessment
+    needs: setup-node
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Run Security & SAST Vulnerability Assessment
+        run: node scripts/security-audit.js
+
+      - name: Upload Security Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: reports/security-report.json
+
+  summary:
+    name: summary
+    needs: [selenium-tests, appium-tests, load-tests, security-assessment]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Generate Production Web Export Bundle
+        run: npx expo export --platform web || npx expo export
+
+      - name: Upload Web Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: dist/
+
+      - name: Generate Consolidated QA Summary Report
+        run: node scripts/generate-summary-report.js
+
+      - name: Publish Summary to Job Summary
+        run: cat reports/summary.md >> $GITHUB_STEP_SUMMARY

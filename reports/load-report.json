@@ -1,0 +1,52 @@
+{
+  "testSuite": "Load & Latency Performance",
+  "timestamp": "2026-08-14T12:32:24.438Z",
+  "metrics": [
+    {
+      "name": "1KB SHA-256 Binary Hashing",
+      "iterations": 500,
+      "totalDurationMs": "3.60",
+      "avgLatencyMs": "0.007",
+      "thresholdMs": 1,
+      "status": "PASSED"
+    },
+    {
+      "name": "1MB Document Payload Hashing",
+      "iterations": 50,
+      "totalDurationMs": "46.44",
+      "avgLatencyMs": "0.929",
+      "thresholdMs": 15,
+      "status": "PASSED"
+    },
+    {
+      "name": "10MB Vault Archive Hashing",
+      "iterations": 10,
+      "totalDurationMs": "77.60",
+      "avgLatencyMs": "7.760",
+      "thresholdMs": 80,
+      "status": "PASSED"
+    },
+    {
+      "name": "Vault Search 1,000 Documents Filter",
+      "iterations": 100,
+      "totalDurationMs": "7.40",
+      "avgLatencyMs": "0.074",
+      "thresholdMs": 2,
+      "status": "PASSED"
+    },
+    {
+      "name": "Proof JSON Serialization & Parsing",
+      "iterations": 500,
+      "totalDurationMs": "0.88",
+      "avgLatencyMs": "0.002",
+      "thresholdMs": 0.5,
+      "status": "PASSED"
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "avgLatencyMs": 0
+  }
+}
