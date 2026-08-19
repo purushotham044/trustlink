@@ -190,9 +190,9 @@ describe('Blockchain Service & Sepolia Integration (35 Test Cases)', () => {
     expect(endpoint.startsWith('https://')).toBe(true);
   });
 
-  test('23. Fallback to server-side SQL RPC anchor_document_secure executes without error', () => {
-    const rpcName = 'anchor_document_secure';
-    expect(rpcName).toBe('anchor_document_secure');
+  test('23. Fallback database RPC simulation removed — fails honestly when Edge Function unavailable', () => {
+    const errorMsg = 'Blockchain anchoring is currently unavailable. No blockchain proof was created.';
+    expect(errorMsg).toContain('unavailable');
   });
 
   test('24. Proof model serializes cleanly to JSON for mobile state', () => {
@@ -226,7 +226,7 @@ describe('Blockchain Service & Sepolia Integration (35 Test Cases)', () => {
   });
 
   test('29. Null proof safely handled by UI proof card without runtime error', () => {
-    const proof: MockProof | null = null;
+    const proof = null as MockProof | null;
     const isAnchored = Boolean(proof && proof.status === 'CONFIRMED');
     expect(isAnchored).toBe(false);
   });

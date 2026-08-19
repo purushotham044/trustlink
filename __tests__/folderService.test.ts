@@ -153,7 +153,7 @@ describe('Folder Management Service (25 Test Cases)', () => {
   });
 
   test('23. Multi-item folder formats "N items" plural', () => {
-    const docCount = 12;
+    const docCount: number = 12;
     const badge = `${docCount} ${docCount === 1 ? 'item' : 'items'}`;
     expect(badge).toBe('12 items');
   });

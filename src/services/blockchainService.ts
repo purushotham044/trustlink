@@ -16,7 +16,7 @@ const DOCUMENT_REGISTRY_CONTRACT_ADDRESS = '0x1b9A1FBD6FC714B1aC443d00a555529567
 
 export const blockchainService = {
   /**
-   * Fetches the blockchain proof for a document from PostgreSQL.
+   * Fetches the authoritative blockchain proof record for a document from PostgreSQL.
    */
   async getBlockchainProof(documentId: string): Promise<BlockchainProof | null> {
     const { data, error } = await supabase
@@ -34,42 +34,36 @@ export const blockchainService = {
   },
 
   /**
-   * Anchors a document's SHA-256 hash to Ethereum Sepolia.
-   * Invokes the Supabase Edge Function where the server-side signer
-   * validates ownership and reads the trusted database hash.
-   * Falls back to PostgreSQL SECURITY DEFINER RPC in development.
+   * Anchors a document's authoritative SHA-256 hash to Ethereum Sepolia.
+   * Invokes the authenticated Supabase Edge Function where the server-side signer
+   * validates ownership, reads authoritative current_hash from database, and broadcasts
+   * the real transaction to Ethereum Sepolia.
+   *
+   * NO FAKE CLIENT SIMULATION: Fails honestly if the backend or Ethereum network is unavailable.
    */
   async anchorDocument(documentId: string): Promise<BlockchainProof> {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
 
-    // 1. Attempt to invoke the Supabase Edge Function
-    try {
-      const { data, error } = await supabase.functions.invoke('anchor-document', {
-        body: { documentId },
-      });
+    const { data, error } = await supabase.functions.invoke('anchor-document', {
+      body: { documentId },
+    });
 
-      if (!error && data?.proof) {
-        return data.proof as BlockchainProof;
-      }
-    } catch (fnErr) {
-      console.log('Edge function not reached, utilizing server-side database RPC...');
+    if (error) {
+      const errorMsg = data?.error || error.message || 'Blockchain anchoring service unavailable';
+      throw new Error(errorMsg);
     }
 
-    // 2. Server-side PostgreSQL RPC function (runs with SECURITY DEFINER privileges)
-    const { data: proof, error: rpcError } = await supabase
-      .rpc('anchor_document_secure', { p_document_id: documentId });
-
-    if (rpcError) {
-      throw new Error(rpcError.message || 'Server-side blockchain anchoring failed');
+    if (!data?.proof) {
+      throw new Error(data?.error || 'Blockchain anchoring is currently unavailable. No blockchain proof was created.');
     }
 
-    return proof as BlockchainProof;
+    return data.proof as BlockchainProof;
   },
 
   /**
    * Queries the Ethereum Sepolia smart contract directly via public JSON-RPC.
-   * Confirms live on-chain existence of the 32-byte SHA-256 hash.
+   * Confirms live on-chain existence of the 32-byte SHA-256 hash independently.
    */
   async verifyOnChain(documentHash: string): Promise<{ exists: boolean; owner: string; timestamp: number; blockNumber: number } | null> {
     try {
@@ -101,6 +95,7 @@ export const blockchainService = {
 
   /**
    * Verifies document integrity against Database record and Ethereum Sepolia on-chain proof.
+   * Distinguishes local cryptographic integrity from blockchain anchoring confirmation.
    */
   async verifyDualIntegrity(
     documentName: string,
@@ -116,7 +111,7 @@ export const blockchainService = {
       blockchainMatch = currentHash.toLowerCase() === proof.document_hash.toLowerCase();
     }
 
-    // Optional direct on-chain query validation
+    // Direct on-chain query validation against Sepolia
     const onChainResult = await this.verifyOnChain(currentHash);
     if (onChainResult && onChainResult.exists) {
       blockchainMatch = true;

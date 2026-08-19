@@ -130,7 +130,7 @@ describe('UI Component & Design System Validation (30 Test Cases)', () => {
   });
 
   test('26. DocumentCard status badge uses warning color for PENDING', () => {
-    const status = 'PENDING';
+    const status: string = 'PENDING';
     const color = status === 'VERIFIED' ? COLORS.success : COLORS.warning;
     expect(color).toBe('#F59E0B');
   });

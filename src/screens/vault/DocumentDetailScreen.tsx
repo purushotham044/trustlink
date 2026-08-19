@@ -118,7 +118,10 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
       setProof(newProof);
       Alert.alert('Success', `Document anchored on ${newProof.blockchain_network}!`);
     } catch (err: any) {
-      Alert.alert('Anchoring Failed', err.message || 'Could not anchor document');
+      Alert.alert(
+        'Anchoring Unavailable',
+        err.message || 'Blockchain anchoring is currently unavailable. No blockchain proof was created.'
+      );
     } finally {
       setAnchoring(false);
     }
