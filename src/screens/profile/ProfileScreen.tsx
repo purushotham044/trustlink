@@ -2,7 +2,7 @@
 // TrustLink — Professional Security & Profile Screen
 // ============================================================
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,15 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/common/Button';
+import { HowItWorksModal } from '@/components/common/HowItWorksModal';
 
 export function ProfileScreen() {
   const { user, profile, signOut } = useAuth();
+  const [explainerVisible, setExplainerVisible] = useState(false);
 
   const displayName = profile?.full_name ?? user?.email?.split('@')[0] ?? 'User';
   const email = user?.email ?? '—';
@@ -39,6 +41,22 @@ export function ProfileScreen() {
           <Text style={styles.badgeText}>Authenticated Session</Text>
         </View>
       </View>
+
+      {/* Guide Trigger Card */}
+      <TouchableOpacity
+        style={styles.guideCard}
+        onPress={() => setExplainerVisible(true)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.guideLeft}>
+          <Feather name="help-circle" size={20} color={COLORS.primary} />
+          <View>
+            <Text style={styles.guideTitle}>How TrustLink Works</Text>
+            <Text style={styles.guideSubtitle}>Store → Fingerprint → Blockchain Proof → Verify</Text>
+          </View>
+        </View>
+        <Feather name="chevron-right" size={18} color={COLORS.textMuted} />
+      </TouchableOpacity>
 
       {/* Account Details Card */}
       <View style={styles.card}>
@@ -88,12 +106,12 @@ export function ProfileScreen() {
 
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Database Access</Text>
-          <Text style={styles.rowValue}>PostgreSQL RLS</Text>
+          <Text style={styles.rowValue}>PostgreSQL RLS (Row Level Security)</Text>
         </View>
         <View style={styles.divider} />
 
         <View style={styles.row}>
-          <Text style={styles.rowLabel}>Blockchain Network</Text>
+          <Text style={styles.rowLabel}>Blockchain Proof Network</Text>
           <Text style={[styles.rowValue, { color: COLORS.blockchain }]}>Ethereum Sepolia</Text>
         </View>
       </View>
@@ -107,6 +125,12 @@ export function ProfileScreen() {
           fullWidth
         />
       </View>
+
+      {/* How It Works Explainer Modal */}
+      <HowItWorksModal
+        visible={explainerVisible}
+        onClose={() => setExplainerVisible(false)}
+      />
     </ScrollView>
   );
 }
@@ -122,7 +146,7 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING.lg,
   },
   avatar: {
     width: 68,
@@ -161,6 +185,34 @@ const styles = StyleSheet.create({
     color: COLORS.success,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  guideCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceBorder,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  guideLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  guideTitle: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+  guideSubtitle: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
   card: {
     backgroundColor: COLORS.surface,

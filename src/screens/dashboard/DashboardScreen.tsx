@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Professional Dashboard Screen
+// TrustLink — Professional Production Dashboard Screen
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { documentService } from '@/services/documentService';
 import { Document as VaultDocument } from '@/types';
 import { DocumentCard } from '@/components/vault/DocumentCard';
+import { HowItWorksModal } from '@/components/common/HowItWorksModal';
 
 interface DashboardStats {
   totalDocs: number;
@@ -31,7 +32,7 @@ interface DashboardStats {
 }
 
 export function DashboardScreen() {
-  const { profile, user, signOut } = useAuth();
+  const { profile, user } = useAuth();
   const navigation = useNavigation<any>();
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -44,6 +45,7 @@ export function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [explainerVisible, setExplainerVisible] = useState(false);
 
   const displayName = profile?.full_name ?? user?.email?.split('@')[0] ?? 'User';
 
@@ -51,7 +53,7 @@ export function DashboardScreen() {
     if (!user) return;
 
     try {
-      // 1. Fetch real counts in parallel
+      // Fetch authoritative counts from Supabase
       const [
         { count: totalCount },
         { count: verifiedCount },
@@ -83,7 +85,7 @@ export function DashboardScreen() {
           .select('*')
           .eq('owner_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(3),
+          .limit(4),
       ]);
 
       setStats({
@@ -122,14 +124,27 @@ export function DashboardScreen() {
       const file = result.assets[0];
       setUploading(true);
 
-      await documentService.uploadDocument(
+      const uploaded = await documentService.uploadDocument(
         file.uri,
         file.name,
         file.mimeType || 'application/octet-stream',
         null
       );
 
-      Alert.alert('Success', `"${file.name}" uploaded and hashed successfully!`);
+      Alert.alert(
+        'Upload Successful',
+        `"${file.name}" has been stored securely and its unique SHA-256 digital fingerprint recorded.`,
+        [
+          { text: 'OK' },
+          {
+            text: 'View Document',
+            onPress: () => navigation.navigate('Vault', {
+              screen: 'DocumentDetail',
+              params: { document: uploaded },
+            }),
+          },
+        ]
+      );
       loadDashboardData();
     } catch (err: any) {
       Alert.alert('Upload Failed', err.message);
@@ -149,7 +164,7 @@ export function DashboardScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>SECURE VAULT</Text>
+          <Text style={styles.greeting}>DOCUMENT VAULT</Text>
           <Text style={styles.name}>{displayName}</Text>
         </View>
         <TouchableOpacity
@@ -161,11 +176,32 @@ export function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Real Real-Time Stats Grid */}
+      {/* TrustLink Security Pipeline Card */}
+      <TouchableOpacity
+        style={styles.pipelineCard}
+        onPress={() => setExplainerVisible(true)}
+        activeOpacity={0.85}
+      >
+        <View style={styles.pipelineHeader}>
+          <View style={styles.pipelineTag}>
+            <Feather name="lock" size={12} color={COLORS.primary} />
+            <Text style={styles.pipelineTagText}>HOW TRUSTLINK PROTECTS YOUR FILES</Text>
+          </View>
+          <Feather name="help-circle" size={16} color={COLORS.primary} />
+        </View>
+        <Text style={styles.pipelineFlow}>
+          Store → Fingerprint → Blockchain Proof → Verify → Share
+        </Text>
+        <Text style={styles.pipelineSubtitle}>
+          Tap to see how cryptographic SHA-256 and Ethereum Sepolia anchoring prove your documents have never been altered.
+        </Text>
+      </TouchableOpacity>
+
+      {/* Real Real-Time Vault Metrics */}
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
           <View style={styles.statHeader}>
-            <Text style={styles.statLabel}>Total Files</Text>
+            <Text style={styles.statLabel}>Vault Files</Text>
             <Feather name="folder" size={14} color={COLORS.textMuted} />
           </View>
           <Text style={styles.statValue}>
@@ -176,13 +212,13 @@ export function DashboardScreen() {
 
         <View style={styles.statCard}>
           <View style={styles.statHeader}>
-            <Text style={styles.statLabel}>Cryptographic</Text>
+            <Text style={styles.statLabel}>Verified</Text>
             <Feather name="check-circle" size={14} color={COLORS.success} />
           </View>
           <Text style={[styles.statValue, { color: COLORS.success }]}>
             {loading ? '-' : stats.verifiedDocs}
           </Text>
-          <Text style={styles.statFootnote}>Integrity Verified</Text>
+          <Text style={styles.statFootnote}>Integrity Confirmed</Text>
         </View>
 
         <View style={styles.statCard}>
@@ -193,18 +229,18 @@ export function DashboardScreen() {
           <Text style={[styles.statValue, { color: COLORS.blockchain }]}>
             {loading ? '-' : stats.anchoredDocs}
           </Text>
-          <Text style={styles.statFootnote}>Sepolia Anchored</Text>
+          <Text style={styles.statFootnote}>Sepolia Proofs</Text>
         </View>
 
         <View style={styles.statCard}>
           <View style={styles.statHeader}>
-            <Text style={styles.statLabel}>Sharing</Text>
+            <Text style={styles.statLabel}>Active Shares</Text>
             <Feather name="share-2" size={14} color={COLORS.warning} />
           </View>
           <Text style={[styles.statValue, { color: COLORS.warning }]}>
             {loading ? '-' : stats.sharedDocs}
           </Text>
-          <Text style={styles.statFootnote}>Active Shares</Text>
+          <Text style={styles.statFootnote}>Time-Bound Access</Text>
         </View>
       </View>
 
@@ -213,17 +249,17 @@ export function DashboardScreen() {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, styles.primaryAction]}
             onPress={handleQuickUpload}
             disabled={uploading}
             activeOpacity={0.7}
           >
             {uploading ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <ActivityIndicator size="small" color={COLORS.textInverse} />
             ) : (
-              <Feather name="upload" size={18} color={COLORS.primary} />
+              <Feather name="upload" size={16} color={COLORS.textInverse} />
             )}
-            <Text style={styles.actionButtonText}>Upload File</Text>
+            <Text style={[styles.actionButtonText, { color: COLORS.textInverse }]}>Upload File</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -231,8 +267,8 @@ export function DashboardScreen() {
             onPress={() => navigation.navigate('Vault')}
             activeOpacity={0.7}
           >
-            <Feather name="folder" size={18} color={COLORS.textPrimary} />
-            <Text style={styles.actionButtonText}>Browse Vault</Text>
+            <Feather name="folder" size={16} color={COLORS.textPrimary} />
+            <Text style={styles.actionButtonText}>Open Vault</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -240,21 +276,10 @@ export function DashboardScreen() {
             onPress={() => navigation.navigate('Activity')}
             activeOpacity={0.7}
           >
-            <Feather name="activity" size={18} color={COLORS.textPrimary} />
+            <Feather name="activity" size={16} color={COLORS.textPrimary} />
             <Text style={styles.actionButtonText}>Audit Log</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      {/* Security Architecture Card */}
-      <View style={styles.securityBanner}>
-        <View style={styles.securityBannerHeader}>
-          <Feather name="lock" size={16} color={COLORS.primary} />
-          <Text style={styles.securityBannerTitle}>Dual-Layer Verification</Text>
-        </View>
-        <Text style={styles.securityBannerText}>
-          Every document is locally hashed using SHA-256 and verified against an immutable cryptographic anchor on the Ethereum Sepolia blockchain.
-        </Text>
       </View>
 
       {/* Recent Documents */}
@@ -263,7 +288,7 @@ export function DashboardScreen() {
           <Text style={styles.sectionTitle}>Recent Documents</Text>
           {recentDocs.length > 0 && (
             <TouchableOpacity onPress={() => navigation.navigate('Vault')}>
-              <Text style={styles.seeAllText}>View All ›</Text>
+              <Text style={styles.seeAllText}>Browse Vault ›</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -284,11 +309,19 @@ export function DashboardScreen() {
         ) : (
           <View style={styles.emptyState}>
             <Feather name="inbox" size={32} color={COLORS.textMuted} style={styles.emptyIcon} />
-            <Text style={styles.emptyText}>No documents uploaded yet</Text>
-            <Text style={styles.emptySubtext}>Tap "Upload File" above to secure your first document</Text>
+            <Text style={styles.emptyText}>No documents in vault yet</Text>
+            <Text style={styles.emptySubtext}>
+              Upload a document to generate its digital fingerprint and create an immutable blockchain proof.
+            </Text>
           </View>
         )}
       </View>
+
+      {/* How It Works Explainer Modal */}
+      <HowItWorksModal
+        visible={explainerVisible}
+        onClose={() => setExplainerVisible(false)}
+      />
     </ScrollView>
   );
 }
@@ -306,7 +339,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
     paddingTop: SPACING.base,
   },
   greeting: {
@@ -330,6 +363,44 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pipelineCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceBorder,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+    padding: SPACING.md,
+    marginBottom: SPACING.xl,
+  },
+  pipelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  pipelineTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pipelineTagText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.primary,
+    letterSpacing: 0.8,
+  },
+  pipelineFlow: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.textPrimary,
+    marginVertical: 4,
+  },
+  pipelineSubtitle: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    lineHeight: 16,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -405,42 +476,19 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     gap: SPACING.xs,
   },
+  primaryAction: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
   actionButtonText: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: TYPOGRAPHY.semibold,
     color: COLORS.textPrimary,
   },
-  securityBanner: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceBorder,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-    padding: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
-  securityBannerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: 4,
-  },
-  securityBannerTitle: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  securityBannerText: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
-  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.md,
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
@@ -448,16 +496,18 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     marginBottom: SPACING.sm,
-    opacity: 0.6,
+    opacity: 0.5,
   },
   emptyText: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: TYPOGRAPHY.semibold,
     color: COLORS.textSecondary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   emptySubtext: {
     fontSize: TYPOGRAPHY.xs,
     color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

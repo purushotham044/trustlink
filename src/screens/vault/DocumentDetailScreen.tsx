@@ -76,7 +76,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         Alert.alert('Downloaded', `File saved to: ${uri}`);
       }
     } catch (err: any) {
-      Alert.alert('Download Failed', err.message);
+      Alert.alert('Download Failed', err.message || 'Could not download file');
     } finally {
       setDownloading(false);
     }
@@ -85,7 +85,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
   const handleDelete = () => {
     Alert.alert(
       'Delete Document',
-      `Are you sure you want to delete "${document.name}"? This action cannot be undone.`,
+      `Are you sure you want to permanently delete "${document.name}"? This will remove the file and all associated share links.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -97,7 +97,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
               await documentService.deleteDocument(document);
               navigation.goBack();
             } catch (err: any) {
-              Alert.alert('Delete Failed', err.message);
+              Alert.alert('Delete Failed', err.message || 'Could not delete document');
               setDeleting(false);
             }
           }
@@ -108,7 +108,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
   const handleAnchor = async () => {
     if (!document.current_hash) {
-      Alert.alert('Error', 'Document hash is missing. Cannot anchor to blockchain.');
+      Alert.alert('Error', 'Document digital fingerprint is missing. Cannot create blockchain proof.');
       return;
     }
 
@@ -116,10 +116,13 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
       setAnchoring(true);
       const newProof = await blockchainService.anchorDocument(document.id);
       setProof(newProof);
-      Alert.alert('Success', `Document anchored on ${newProof.blockchain_network}!`);
+      Alert.alert(
+        'Blockchain Proof Confirmed',
+        `An immutable cryptographic proof for "${document.name}" has been permanently recorded on ${newProof.blockchain_network}.`
+      );
     } catch (err: any) {
       Alert.alert(
-        'Anchoring Unavailable',
+        'Blockchain Anchoring Unavailable',
         err.message || 'Blockchain anchoring is currently unavailable. No blockchain proof was created.'
       );
     } finally {
@@ -141,19 +144,22 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
       if (isLocalMatch && dualResult.blockchainMatch !== false) {
         Alert.alert(
-          'Cryptographic Verification Successful',
-          `1. Local SHA-256 binary hash matches database.\n2. ${proof ? 'Ethereum blockchain proof confirmed on Sepolia.' : 'Internal integrity verified.'}`
+          '✓ Cryptographic Integrity Verified',
+          `1. Local File Check: The stored document bytes exactly match the original SHA-256 fingerprint.\n\n2. Blockchain Status: ${proof ? 'Confirmed on Ethereum Sepolia.' : 'Original vault record matches.'}\n\nConclusion: This document is genuine and has never been altered.`
         );
         setDocument({ ...document, integrity_status: 'VERIFIED' });
       } else {
         Alert.alert(
-          'Verification Failed',
-          'Cryptographic hash mismatch: The file on the server does not match the trusted reference record.'
+          '⚠ Integrity Mismatch Detected',
+          'Cryptographic fingerprint mismatch: The file on the server differs from the original reference record. The document may have been tampered with or modified.'
         );
         setDocument({ ...document, integrity_status: 'FAILED' });
       }
     } catch (err: any) {
-      Alert.alert('Verification Error', err.message || 'Could not complete verification');
+      Alert.alert(
+        'Verification Operation Error',
+        err.message || 'Could not complete cryptographic verification due to a network or connection issue.'
+      );
     } finally {
       setVerifying(false);
     }
@@ -161,7 +167,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
   const handleShareSubmit = async () => {
     if (!shareTarget.trim()) {
-      Alert.alert('Error', 'Please enter a recipient email or user ID');
+      Alert.alert('Required', 'Please enter a recipient email address or user ID.');
       return;
     }
 
@@ -173,12 +179,15 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
     try {
       setSharing(true);
-      await shareService.shareDocument(document.id, shareTarget, permission, expiresAt);
+      await shareService.shareDocument(document.id, shareTarget.trim(), permission, expiresAt);
       setShareModalVisible(false);
       setShareTarget('');
-      Alert.alert('Success', `Document shared with ${permission} permission!`);
+      Alert.alert(
+        'Document Shared',
+        `"${document.name}" has been shared with ${shareTarget} (${permission === 'DOWNLOAD' ? 'Download & View' : 'View Only'}). You can revoke access at any time from the Sharing tab.`
+      );
     } catch (err: any) {
-      Alert.alert('Share Failed', err.message || 'Could not create share');
+      Alert.alert('Share Failed', err.message || 'Could not create share access');
     } finally {
       setSharing(false);
     }
@@ -188,7 +197,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     const url = blockchainService.getExplorerUrl(txHash);
     if (url) {
       Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Could not open transaction link');
+        Alert.alert('Error', 'Could not open transaction explorer link');
       });
     }
   };
@@ -218,19 +227,22 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         </Text>
       </View>
 
-      {/* Cryptographic Identity Section */}
+      {/* Digital Fingerprint Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cryptographic Identity</Text>
+        <Text style={styles.sectionTitle}>Digital Fingerprint (SHA-256)</Text>
+        <Text style={styles.sectionExplainer}>
+          This 256-bit cryptographic signature is computed from this file's exact binary bytes. If even one character is altered, this fingerprint changes completely.
+        </Text>
         
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.label}>SHA-256 Hash</Text>
+            <Text style={styles.label}>Authoritative Digest</Text>
             <View style={styles.badgeSmall}>
               <Text style={styles.badgeSmallText}>Deterministic</Text>
             </View>
           </View>
           <Text style={styles.hash} selectable={true}>
-            {document.current_hash || 'Calculating...'}
+            {document.current_hash || 'Calculating fingerprint...'}
           </Text>
         </View>
 
@@ -239,18 +251,45 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
             <Text style={styles.label}>Integrity Status</Text>
             <View style={[
               styles.statusBadge,
-              document.integrity_status === 'VERIFIED' ? styles.statusVerified : styles.statusPending
+              document.integrity_status === 'VERIFIED'
+                ? styles.statusVerified
+                : document.integrity_status === 'FAILED'
+                ? styles.statusFailed
+                : styles.statusPending
             ]}>
               <Feather
-                name={document.integrity_status === 'VERIFIED' ? 'check-circle' : 'clock'}
+                name={
+                  document.integrity_status === 'VERIFIED'
+                    ? 'check-circle'
+                    : document.integrity_status === 'FAILED'
+                    ? 'alert-triangle'
+                    : 'clock'
+                }
                 size={12}
-                color={document.integrity_status === 'VERIFIED' ? COLORS.success : COLORS.warning}
+                color={
+                  document.integrity_status === 'VERIFIED'
+                    ? COLORS.success
+                    : document.integrity_status === 'FAILED'
+                    ? COLORS.danger
+                    : COLORS.warning
+                }
               />
               <Text style={[
                 styles.statusBadgeText,
-                { color: document.integrity_status === 'VERIFIED' ? COLORS.success : COLORS.warning }
+                {
+                  color:
+                    document.integrity_status === 'VERIFIED'
+                      ? COLORS.success
+                      : document.integrity_status === 'FAILED'
+                      ? COLORS.danger
+                      : COLORS.warning
+                }
               ]}>
-                {document.integrity_status === 'VERIFIED' ? 'Verified Intact' : 'Pending Verification'}
+                {document.integrity_status === 'VERIFIED'
+                  ? 'Original & Verified'
+                  : document.integrity_status === 'FAILED'
+                  ? 'Tampered / Mismatched'
+                  : 'Pending Verification'}
               </Text>
             </View>
           </View>
@@ -264,10 +303,13 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
           {proof && (
             <View style={styles.chainBadge}>
               <Feather name="link" size={12} color={COLORS.blockchain} />
-              <Text style={styles.chainBadgeText}>Sepolia</Text>
+              <Text style={styles.chainBadgeText}>Ethereum Sepolia</Text>
             </View>
           )}
         </View>
+        <Text style={styles.sectionExplainer}>
+          An immutable, public proof on the Ethereum blockchain that proves this document existed in this exact state at a verified timestamp.
+        </Text>
 
         {loadingProof ? (
           <View style={styles.loadingCard}>
@@ -276,7 +318,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         ) : proof ? (
           <View style={[styles.card, styles.blockchainCard]}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Network</Text>
+              <Text style={styles.infoLabel}>Blockchain Network</Text>
               <Text style={styles.infoValue}>{proof.blockchain_network}</Text>
             </View>
 
@@ -290,7 +332,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
             {proof.transaction_hash && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Transaction</Text>
+                <Text style={styles.infoLabel}>Transaction Proof</Text>
                 <TouchableOpacity
                   style={styles.linkButton}
                   onPress={() => openEtherscan(proof.transaction_hash!)}
@@ -312,7 +354,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
             {proof.anchored_at && (
               <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.infoLabel}>Anchored At</Text>
+                <Text style={styles.infoLabel}>Anchored Timestamp</Text>
                 <Text style={styles.infoValue}>
                   {new Date(proof.anchored_at).toLocaleDateString()} {new Date(proof.anchored_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
@@ -322,11 +364,11 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         ) : (
           <View style={styles.card}>
             <Text style={styles.unanchoredText}>
-              This document has not been anchored to the blockchain yet. Anchoring generates a public, timestamped cryptographic proof of existence.
+              This document has not been anchored to Ethereum yet. Creating a blockchain proof records an unalterable timestamp on the public ledger.
             </Text>
             <View style={{ height: SPACING.md }} />
             <Button
-              label={anchoring ? 'Anchoring...' : 'Anchor to Sepolia Blockchain'}
+              label={anchoring ? 'Creating Proof...' : 'Create Blockchain Proof'}
               onPress={handleAnchor}
               variant="secondary"
               disabled={anchoring || verifying}
@@ -335,10 +377,10 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         )}
       </View>
 
-      {/* Actions */}
+      {/* Core Actions */}
       <View style={styles.actions}>
         <Button 
-          label={verifying ? 'Verifying Integrity...' : 'Verify Cryptographic Integrity'} 
+          label={verifying ? 'Verifying File Bytes...' : 'Verify Cryptographic Integrity'} 
           onPress={handleVerify} 
           variant={document.integrity_status === 'FAILED' ? 'danger' : 'primary'}
           disabled={downloading || deleting || verifying || anchoring}
@@ -352,14 +394,14 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         />
         <View style={{ height: SPACING.sm }} />
         <Button 
-          label={downloading ? 'Downloading...' : 'Download / View'} 
+          label={downloading ? 'Downloading File...' : 'Download / View File'} 
           onPress={handleDownload} 
           variant="secondary"
           disabled={downloading || deleting || verifying || anchoring}
         />
         <View style={{ height: SPACING.sm }} />
         <Button 
-          label={deleting ? 'Deleting...' : 'Delete Document'} 
+          label={deleting ? 'Deleting Document...' : 'Delete Document'} 
           onPress={handleDelete} 
           variant="ghost"
           disabled={downloading || deleting || verifying || anchoring}
@@ -383,18 +425,19 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
             </View>
             
             <Text style={styles.modalSubtitle}>
-              Grant time-bounded access with granular permissions.
+              Grant secure, time-bounded access to another registered TrustLink user.
             </Text>
 
-            <Text style={styles.inputLabel}>Recipient Email / User ID</Text>
+            <Text style={styles.inputLabel}>Recipient Email Address</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. colleague@example.com"
+              placeholder="e.g. colleague@trustlink.app"
               placeholderTextColor={COLORS.textMuted}
               value={shareTarget}
               onChangeText={setShareTarget}
               autoCapitalize="none"
               autoCorrect={false}
+              keyboardType="email-address"
             />
 
             <Text style={styles.inputLabel}>Permission Level</Text>
@@ -415,7 +458,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
               >
                 <Feather name="download" size={14} color={permission === 'DOWNLOAD' ? COLORS.primary : COLORS.textMuted} />
                 <Text style={[styles.pickerText, permission === 'DOWNLOAD' && styles.pickerActiveText]}>
-                  DOWNLOAD
+                  DOWNLOAD & VIEW
                 </Text>
               </TouchableOpacity>
             </View>
@@ -429,7 +472,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
                   onPress={() => setExpiry(opt)}
                 >
                   <Text style={[styles.pickerText, expiry === opt && styles.pickerActiveText]}>
-                    {opt.toUpperCase()}
+                    {opt === 'never' ? 'PERMANENT' : opt.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -437,7 +480,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
             <View style={styles.modalActions}>
               <Button
-                label={sharing ? 'Sharing...' : 'Confirm Share'}
+                label={sharing ? 'Granting Access...' : 'Confirm Share'}
                 onPress={handleShareSubmit}
                 disabled={sharing}
               />
@@ -496,7 +539,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
+    marginBottom: 2,
   },
   sectionTitle: {
     fontSize: TYPOGRAPHY.xs,
@@ -504,6 +547,13 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+  sectionExplainer: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    lineHeight: 16,
+    marginBottom: SPACING.sm,
+    marginTop: 2,
   },
   chainBadge: {
     flexDirection: 'row',
@@ -583,6 +633,9 @@ const styles = StyleSheet.create({
   },
   statusPending: {
     backgroundColor: COLORS.warningMuted,
+  },
+  statusFailed: {
+    backgroundColor: COLORS.dangerMuted,
   },
   statusBadgeText: {
     fontSize: 11,
