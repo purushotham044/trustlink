@@ -5,8 +5,8 @@
 import { supabase } from '@/lib/supabase';
 import { Document } from '@/types';
 import * as FileSystem from 'expo-file-system/legacy';
-import { computeFileSha256 } from '@/lib/crypto';
 import { decode } from 'base64-arraybuffer';
+import { ethers } from 'ethers';
 import { integrityService } from './integrityService';
 
 export const documentService = {
@@ -46,30 +46,29 @@ export const documentService = {
     folderId: string | null = null
   ): Promise<Document> {
     const { data: user } = await supabase.auth.getUser();
-    if (!user.user) throw new Error('Not authenticated');
+    if (!user.user) throw new Error('Not authenticated. Please sign in again.');
 
     // 0. Ensure user profile exists in public.profiles to satisfy foreign key constraint
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.user.id)
-      .maybeSingle();
-
-    if (!profile) {
-      await supabase
+    try {
+      const { data: profile } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.user.id,
-          full_name: user.user.user_metadata?.full_name || user.user.email?.split('@')[0] || null,
-        }, { onConflict: 'id' });
+        .select('id')
+        .eq('id', user.user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        await supabase
+          .from('profiles')
+          .upsert({
+            id: user.user.id,
+            full_name: user.user.user_metadata?.full_name || user.user.email?.split('@')[0] || 'User',
+          }, { onConflict: 'id' });
+      }
+    } catch (profileErr) {
+      console.warn('Profile sync note:', profileErr);
     }
 
-    // 1. Calculate SHA-256 (this happens locally on device)
-    console.log(`Calculating SHA-256 for ${fileName}...`);
-    const sha256Hash = await computeFileSha256(fileUri);
-    console.log(`Hash calculated: ${sha256Hash}`);
-
-    // 2. Read file to base64 and decode to ArrayBuffer for Supabase Storage
+    // 1. Read file to base64 and decode to ArrayBuffer
     const base64Content = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -77,26 +76,31 @@ export const documentService = {
     const fileSize = arrayBuffer.byteLength;
 
     if (fileSize > 50 * 1024 * 1024) {
-      throw new Error('File size exceeds 50MB limit');
+      throw new Error('File size exceeds the 50MB limit.');
     }
+
+    // 2. Compute SHA-256 hash directly on the binary byte array
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const sha256Hash = ethers.sha256(uint8Array).replace('0x', '').toLowerCase();
 
     // 3. Upload to Storage
     // Path: {user_id}/{timestamp}_{sanitized_filename}
     const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const storagePath = `${user.user.id}/${Date.now()}_${safeFileName}`;
 
-    console.log(`Uploading to storage path: ${storagePath}...`);
     const { error: uploadError } = await supabase.storage
       .from('documents')
       .upload(storagePath, arrayBuffer, {
-        contentType: mimeType,
-        upsert: false,
+        contentType: mimeType || 'application/octet-stream',
+        upsert: true,
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      throw new Error(`Storage error: ${uploadError.message || 'Could not save file to storage bucket.'}`);
+    }
 
     // 4. Create database record
-    console.log('Creating database record...');
     const { data, error: dbError } = await supabase
       .from('documents')
       .insert({
@@ -104,7 +108,7 @@ export const documentService = {
         folder_id: folderId,
         name: fileName,
         storage_path: storagePath,
-        mime_type: mimeType,
+        mime_type: mimeType || 'application/octet-stream',
         size: fileSize,
         current_hash: sha256Hash,
         integrity_status: 'PENDING',
@@ -115,20 +119,27 @@ export const documentService = {
     if (dbError) {
       // Rollback storage if DB fails
       await supabase.storage.from('documents').remove([storagePath]);
-      throw dbError;
+      throw new Error(`Database error: ${dbError.message || 'Could not create document record.'}`);
     }
 
-    // 5. Create integrity record
-    console.log('Creating integrity record...');
-    await integrityService.createIntegrityRecord(data.id, sha256Hash, 1);
+    // 5. Create integrity record (resilient)
+    try {
+      await integrityService.createIntegrityRecord(data.id, sha256Hash, 1);
+    } catch (integrityErr: any) {
+      console.warn('Integrity ledger record note:', integrityErr.message);
+    }
 
-    // 6. Log upload to audit trail
-    await supabase.from('audit_logs').insert({
-      user_id: user.user.id,
-      document_id: data.id,
-      action: 'DOCUMENT_UPLOADED',
-      metadata: { name: fileName, size: fileSize, mime_type: mimeType },
-    });
+    // 6. Log upload to audit trail (resilient)
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: user.user.id,
+        document_id: data.id,
+        action: 'DOCUMENT_UPLOADED',
+        metadata: { name: fileName, size: fileSize, mime_type: mimeType },
+      });
+    } catch (auditErr: any) {
+      console.warn('Audit log note:', auditErr.message);
+    }
 
     return data as Document;
   },
@@ -158,12 +169,14 @@ export const documentService = {
 
     // Log download to audit trail
     if (user?.user) {
-      await supabase.from('audit_logs').insert({
-        user_id: user.user.id,
-        document_id: document.id,
-        action: 'DOCUMENT_DOWNLOADED',
-        metadata: { name: document.name },
-      });
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: user.user.id,
+          document_id: document.id,
+          action: 'DOCUMENT_DOWNLOADED',
+          metadata: { name: document.name },
+        });
+      } catch (e) {}
     }
 
     return uri;
@@ -194,12 +207,14 @@ export const documentService = {
 
     // 3. Log deletion to audit trail
     if (user?.user) {
-      await supabase.from('audit_logs').insert({
-        user_id: user.user.id,
-        document_id: document.id,
-        action: 'DOCUMENT_DELETED',
-        metadata: { name: document.name },
-      });
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: user.user.id,
+          document_id: document.id,
+          action: 'DOCUMENT_DELETED',
+          metadata: { name: document.name },
+        });
+      } catch (e) {}
     }
   }
 };
