@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Professional Register Screen
+// TrustLink — Professional Register Screen (Executive White & Navy)
 // ============================================================
 
 import React, { useState } from 'react';
@@ -172,11 +172,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
-    shadowColor: COLORS.primary,
+    shadowColor: 'rgba(15, 23, 42, 0.08)',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   title: {
     fontSize: TYPOGRAPHY.xl,
@@ -196,6 +196,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: SPACING.xl,
     marginBottom: SPACING.lg,
+    shadowColor: 'rgba(15, 23, 42, 0.05)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 2,
   },
   registerButton: {
     marginTop: SPACING.xs,
@@ -230,6 +235,6 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: TYPOGRAPHY.sm,
     color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontWeight: TYPOGRAPHY.bold,
   },
 });

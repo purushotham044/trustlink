@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Professional Security & Profile Screen
+// TrustLink — Professional Security & Profile Screen (Responsive)
 // ============================================================
 
 import React, { useState } from 'react';
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +18,7 @@ import { Button } from '@/components/common/Button';
 import { HowItWorksModal } from '@/components/common/HowItWorksModal';
 
 export function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const { user, profile, signOut } = useAuth();
   const [explainerVisible, setExplainerVisible] = useState(false);
 
@@ -27,7 +29,10 @@ export function ProfileScreen() {
     : '—';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + SPACING.sm, paddingBottom: insets.bottom + 32 }]}
+    >
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
@@ -141,8 +146,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   content: {
-    padding: SPACING.lg,
-    paddingBottom: SPACING.xxxl,
+    paddingHorizontal: SPACING.md + 2,
   },
   profileHeader: {
     alignItems: 'center',
@@ -158,6 +162,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
+    shadowColor: 'rgba(15, 23, 42, 0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   name: {
     fontSize: TYPOGRAPHY.lg,
@@ -198,6 +207,11 @@ const styles = StyleSheet.create({
     borderLeftColor: COLORS.primary,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    shadowColor: 'rgba(15, 23, 42, 0.03)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+    elevation: 1,
   },
   guideLeft: {
     flexDirection: 'row',
@@ -221,6 +235,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    shadowColor: 'rgba(15, 23, 42, 0.03)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+    elevation: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -257,6 +276,6 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   actionContainer: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
   },
 });

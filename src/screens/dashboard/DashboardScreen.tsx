@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Professional Production Dashboard Screen
+// TrustLink — Professional Production Dashboard Screen (Responsive)
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -32,6 +33,7 @@ interface DashboardStats {
 }
 
 export function DashboardScreen() {
+  const insets = useSafeAreaInsets();
   const { profile, user } = useAuth();
   const navigation = useNavigation<any>();
 
@@ -156,7 +158,7 @@ export function DashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + SPACING.sm, paddingBottom: insets.bottom + 32 }]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
       }
@@ -332,19 +334,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   content: {
-    padding: SPACING.lg,
-    paddingBottom: SPACING.xxxl,
+    paddingHorizontal: SPACING.md + 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.lg,
-    paddingTop: SPACING.base,
   },
   greeting: {
     fontSize: 11,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontWeight: TYPOGRAPHY.bold,
     color: COLORS.primary,
     letterSpacing: 1.2,
   },
@@ -363,6 +363,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: 'rgba(15, 23, 42, 0.05)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   pipelineCard: {
     backgroundColor: COLORS.surface,
@@ -372,7 +377,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary,
     padding: SPACING.md,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
+    shadowColor: 'rgba(15, 23, 42, 0.04)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 1,
   },
   pipelineHeader: {
     flexDirection: 'row',
@@ -406,7 +416,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   statCard: {
     flex: 1,
@@ -416,6 +426,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
+    shadowColor: 'rgba(15, 23, 42, 0.03)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+    elevation: 1,
   },
   statHeader: {
     flexDirection: 'row',
@@ -439,7 +454,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   section: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -448,7 +463,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   sectionTitle: {
-    fontSize: TYPOGRAPHY.sm,
+    fontSize: TYPOGRAPHY.xs,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
     letterSpacing: 0.5,
@@ -462,7 +477,7 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   actionButton: {
     flex: 1,
@@ -475,6 +490,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     paddingVertical: SPACING.md,
     gap: SPACING.xs,
+    shadowColor: 'rgba(15, 23, 42, 0.03)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   primaryAction: {
     backgroundColor: COLORS.primary,
