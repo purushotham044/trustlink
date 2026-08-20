@@ -12,7 +12,7 @@ const DOCUMENT_REGISTRY_ABI = [
 ];
 
 const SEPOLIA_RPC_ENDPOINT = 'https://ethereum-sepolia.publicnode.com';
-const DOCUMENT_REGISTRY_CONTRACT_ADDRESS = '0x1b9A1FBD6FC714B1aC443d00a555529567bd8D0E';
+export const DOCUMENT_REGISTRY_CONTRACT_ADDRESS = '0x1b9A1FBD6FC714B1aC443d00a555529567bd8D0E';
 
 export const blockchainService = {
   /**
@@ -35,11 +35,6 @@ export const blockchainService = {
 
   /**
    * Anchors a document's authoritative SHA-256 hash to Ethereum Sepolia.
-   * Invokes the authenticated Supabase Edge Function where the server-side signer
-   * validates ownership, reads authoritative current_hash from database, and broadcasts
-   * the real transaction to Ethereum Sepolia.
-   *
-   * NO FAKE CLIENT SIMULATION: Fails honestly if the backend or Ethereum network is unavailable.
    */
   async anchorDocument(documentId: string): Promise<BlockchainProof> {
     const { data: user } = await supabase.auth.getUser();
@@ -94,8 +89,14 @@ export const blockchainService = {
   },
 
   /**
+   * Generates a link to view the DocumentRegistry Smart Contract on Sepolia Etherscan.
+   */
+  getContractUrl(contractAddress = DOCUMENT_REGISTRY_CONTRACT_ADDRESS): string {
+    return `https://sepolia.etherscan.io/address/${contractAddress}#readContract`;
+  },
+
+  /**
    * Verifies document integrity against Database record and Ethereum Sepolia on-chain proof.
-   * Distinguishes local cryptographic integrity from blockchain anchoring confirmation.
    */
   async verifyDualIntegrity(
     documentName: string,

@@ -215,6 +215,13 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const openContract = () => {
+    const url = blockchainService.getContractUrl(proof?.contract_address || undefined);
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Could not open smart contract link');
+    });
+  };
+
   const formattedSize = document.size > 1024 * 1024
     ? `${(document.size / (1024 * 1024)).toFixed(2)} MB`
     : `${(document.size / 1024).toFixed(1)} KB`;
@@ -344,6 +351,19 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
                 <Feather name="check" size={12} color={COLORS.blockchain} />
                 <Text style={styles.proofStatusText}>{proof.status}</Text>
               </View>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Smart Contract</Text>
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={openContract}
+              >
+                <Text style={styles.linkText}>
+                  {truncateTxHash(proof.contract_address || '0x1b9A1FBD6FC714B1aC443d00a555529567bd8D0E')}
+                </Text>
+                <Feather name="external-link" size={13} color={COLORS.primary} />
+              </TouchableOpacity>
             </View>
 
             {proof.transaction_hash && (

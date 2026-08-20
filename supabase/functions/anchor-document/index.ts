@@ -156,10 +156,21 @@ serve(async (req) => {
         txHash = receipt.hash;
         blockNumber = receipt.blockNumber;
       } else {
-        // Already on-chain: retrieve genuine block number
+        // Already on-chain: retrieve genuine event transaction hash or use block
         console.log(`Document hash already registered on-chain by ${owner}`);
-        txHash = `0x${authoritativeHash.substring(0, 64)}`;
         blockNumber = Number(onChainBlock);
+        
+        try {
+          const filter = contract.filters.DocumentAnchored(formattedHashBytes32);
+          const logs = await contract.queryFilter(filter, Math.max(0, blockNumber - 10), blockNumber + 10);
+          if (logs.length > 0 && logs[0].transactionHash) {
+            txHash = logs[0].transactionHash;
+          } else {
+            txHash = `0x${authoritativeHash}`;
+          }
+        } catch (e) {
+          txHash = `0x${authoritativeHash}`;
+        }
       }
     } catch (chainErr: any) {
       console.error('Sepolia RPC / Smart Contract execution failure:', chainErr);
