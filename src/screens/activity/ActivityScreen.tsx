@@ -14,6 +14,7 @@ import {
   ScrollView,
   Modal,
   Linking,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -29,6 +30,7 @@ export function ActivityScreen() {
   const [logs, setLogs] = useState<ExtendedAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<ExtendedAuditLog | null>(null);
 
   const loadLogs = async (category: AuditCategory = activeCategory) => {
@@ -51,6 +53,32 @@ export function ActivityScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadLogs(activeCategory);
+  };
+
+  const handleClearLogs = () => {
+    Alert.alert(
+      'Clear Activity History',
+      'Are you sure you want to clear your activity history? This will remove all previous event logs from your view.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setClearing(true);
+              await auditService.clearAuditLogs();
+              setLogs([]);
+              Alert.alert('Cleared', 'Activity history has been cleared.');
+            } catch (err: any) {
+              Alert.alert('Notice', err.message || 'Could not clear audit logs.');
+            } finally {
+              setClearing(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getActionConfig = (action: string) => {
@@ -204,9 +232,24 @@ export function ActivityScreen() {
           <Text style={styles.headerSubtitle}>SECURITY AUDIT TRAIL</Text>
           <Text style={styles.headerTitle}>Activity History</Text>
         </View>
-        <View style={styles.appendOnlyBadge}>
-          <Feather name="shield" size={12} color={COLORS.success} />
-          <Text style={styles.appendOnlyText}>Append-Only</Text>
+        <View style={styles.headerRight}>
+          {logs.length > 0 && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={handleClearLogs}
+              disabled={clearing}
+              activeOpacity={0.7}
+            >
+              {clearing ? (
+                <ActivityIndicator size="small" color={COLORS.danger} />
+              ) : (
+                <>
+                  <Feather name="trash-2" size={13} color={COLORS.danger} />
+                  <Text style={styles.clearButtonText}>Clear Log</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -245,9 +288,9 @@ export function ActivityScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Feather name="clock" size={44} color={COLORS.textMuted} style={styles.emptyIcon} />
-              <Text style={styles.emptyTitle}>No Activity in this Category</Text>
+              <Text style={styles.emptyTitle}>Activity Log is Clear</Text>
               <Text style={styles.emptySubtitle}>
-                Every file upload, cryptographic verification, blockchain proof, and sharing action is permanently recorded here.
+                Every file upload, cryptographic verification, blockchain proof, and sharing action will be neatly recorded here.
               </Text>
             </View>
           }
@@ -382,19 +425,25 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginTop: 2,
   },
-  appendOnlyBadge: {
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.successMuted,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    gap: 4,
   },
-  appendOnlyText: {
-    fontSize: 10,
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    backgroundColor: COLORS.dangerMuted,
+  },
+  clearButtonText: {
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.success,
+    color: COLORS.danger,
   },
   filterWrapper: {
     paddingVertical: SPACING.sm,
