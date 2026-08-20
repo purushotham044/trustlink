@@ -1,43 +1,43 @@
 // ============================================================
-// TrustLink — Application Constants & Design System Tokens
-// Professional Enterprise Dark Palette (Fintech & Cybersecurity)
+// TrustLink — Application Constants (Executive Dark Blue & White Theme)
+// No secrets here — public configuration only
 // ============================================================
 
 // ── Design System ────────────────────────────────────────────
 
 export const COLORS = {
-  // Primary backgrounds — Slate Midnight
-  background: '#0A0E1A',
-  surface: '#111827',
-  surfaceElevated: '#1A2235',
-  surfaceBorder: '#222F43',
+  // Primary backgrounds (Deep Executive Navy & Dark Blue)
+  background: '#0A1128',
+  surface: '#101F42',
+  surfaceElevated: '#1C2E58',
+  surfaceBorder: '#2A4374',
 
-  // Primary Accent — Cybersecurity Electric Cyan
-  primary: '#00D4FF',
-  primaryDim: '#0099BB',
-  primaryMuted: 'rgba(0, 212, 255, 0.12)',
+  // Accent — Professional Royal Executive Blue
+  primary: '#0066FF',
+  primaryDim: '#0052CC',
+  primaryMuted: 'rgba(0, 102, 255, 0.15)',
 
-  // Status colors — Clean Enterprise Tokens
+  // Status colors
   success: '#10B981',
-  successMuted: 'rgba(16, 185, 129, 0.14)',
+  successMuted: 'rgba(16, 185, 129, 0.15)',
   warning: '#F59E0B',
-  warningMuted: 'rgba(245, 158, 11, 0.14)',
+  warningMuted: 'rgba(245, 158, 11, 0.15)',
   danger: '#EF4444',
-  dangerMuted: 'rgba(239, 68, 68, 0.14)',
+  dangerMuted: 'rgba(239, 68, 68, 0.15)',
 
-  // Blockchain accent — Royal Ethereum Purple
-  blockchain: '#8B5CF6',
-  blockchainMuted: 'rgba(139, 92, 246, 0.14)',
+  // Blockchain accent — Indigo
+  blockchain: '#6366F1',
+  blockchainMuted: 'rgba(99, 102, 241, 0.15)',
 
-  // Text Hierarchy — High Contrast & Readability
-  textPrimary: '#F8FAFC',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  textInverse: '#0A0E1A',
+  // Crisp High-Contrast Text (White & Silver)
+  textPrimary: '#FFFFFF',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  textInverse: '#FFFFFF',
 
-  // Borders
-  border: '#1E293B',
-  borderLight: '#334155',
+  // Borders (Clean Corporate Navy)
+  border: '#233862',
+  borderLight: '#344E80',
 } as const;
 
 export const TYPOGRAPHY = {
