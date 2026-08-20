@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Professional Sharing Screen
+// TrustLink — Professional Sharing Screen (Responsive)
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -13,6 +13,7 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
@@ -22,6 +23,7 @@ import { documentService } from '@/services/documentService';
 type ShareTab = 'with_me' | 'by_me';
 
 export function ShareScreen() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<ShareTab>('with_me');
   const [sharesWithMe, setSharesWithMe] = useState<ExtendedDocumentShare[]>([]);
   const [sharesByMe, setSharesByMe] = useState<ExtendedDocumentShare[]>([]);
@@ -57,16 +59,16 @@ export function ShareScreen() {
   const handleRevoke = (share: ExtendedDocumentShare) => {
     Alert.alert(
       'Revoke Access',
-      `Are you sure you want to revoke access to "${share.document?.name || 'this document'}"?`,
+      `Are you sure you want to revoke access to "${share.document?.name || 'this document'}"? The recipient will immediately lose access.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Revoke',
+          text: 'Revoke Access',
           style: 'destructive',
           onPress: async () => {
             try {
               await shareService.revokeShare(share.id, share.document_id);
-              Alert.alert('Revoked', 'Access has been revoked immediately.');
+              Alert.alert('Access Revoked', 'The recipient can no longer view or download this document.');
               loadShares();
             } catch (err: any) {
               Alert.alert('Error', err.message || 'Could not revoke share');
@@ -80,7 +82,7 @@ export function ShareScreen() {
   const handleDownloadShared = async (share: ExtendedDocumentShare) => {
     if (!share.document) return;
     if (share.permission === 'VIEW') {
-      Alert.alert('View Only', 'You have VIEW permission for this document. Downloading is restricted by the owner.');
+      Alert.alert('View Only Permission', 'You have VIEW ONLY access for this document. Downloading is restricted by the document owner.');
       return;
     }
 
@@ -126,7 +128,7 @@ export function ShareScreen() {
               styles.permText,
               item.permission === 'DOWNLOAD' ? styles.permDownloadText : styles.permViewText,
             ]}>
-              {item.permission}
+              {item.permission === 'DOWNLOAD' ? 'DOWNLOAD' : 'VIEW ONLY'}
             </Text>
           </View>
         </View>
@@ -149,7 +151,7 @@ export function ShareScreen() {
               <View style={styles.statusRow}>
                 <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
                 <Text style={styles.statusActive}>
-                  Active {item.expires_at ? `(Expires ${new Date(item.expires_at).toLocaleDateString()})` : ''}
+                  Active {item.expires_at ? `(Expires ${new Date(item.expires_at).toLocaleDateString()})` : '(Permanent)'}
                 </Text>
               </View>
             )}
@@ -159,6 +161,7 @@ export function ShareScreen() {
             <TouchableOpacity
               style={styles.revokeButton}
               onPress={() => handleRevoke(item)}
+              activeOpacity={0.7}
             >
               <Text style={styles.revokeText}>Revoke</Text>
             </TouchableOpacity>
@@ -169,6 +172,7 @@ export function ShareScreen() {
               style={[styles.downloadButton, item.permission === 'VIEW' && styles.disabledButton]}
               onPress={() => handleDownloadShared(item)}
               disabled={downloadingId === item.id || item.permission === 'VIEW'}
+              activeOpacity={0.7}
             >
               {downloadingId === item.id ? (
                 <ActivityIndicator size="small" color={COLORS.textInverse} />
@@ -187,7 +191,7 @@ export function ShareScreen() {
   const currentList = activeTab === 'with_me' ? sharesWithMe : sharesByMe;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Segmented Tab Header */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -220,7 +224,7 @@ export function ShareScreen() {
           data={currentList}
           keyExtractor={(item) => item.id}
           renderItem={renderShareItem}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
           }
@@ -228,12 +232,12 @@ export function ShareScreen() {
             <View style={styles.emptyContainer}>
               <Feather name="share-2" size={44} color={COLORS.textMuted} style={styles.emptyIcon} />
               <Text style={styles.emptyTitle}>
-                {activeTab === 'with_me' ? 'No documents shared with you' : 'No documents shared yet'}
+                {activeTab === 'with_me' ? 'No documents shared with you yet' : 'No active shares created'}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {activeTab === 'with_me'
-                  ? 'When colleagues share files with your email, they will appear here with cryptographic integrity verification.'
-                  : 'Open any document in your vault and tap "Share Document" to create a time-bounded link.'}
+                  ? 'When colleagues grant you access to files, they will appear here with cryptographic integrity verification.'
+                  : 'Open any document in your vault and tap "Share via Apps" or "Grant In-App Access" to share files securely.'}
               </Text>
             </View>
           }
@@ -252,7 +256,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
     padding: 4,
-    margin: SPACING.md,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -276,9 +282,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.semibold,
   },
   list: {
-    padding: SPACING.md,
-    paddingTop: 0,
-    paddingBottom: SPACING.xxxl,
+    paddingHorizontal: SPACING.md,
   },
   center: {
     flex: 1,

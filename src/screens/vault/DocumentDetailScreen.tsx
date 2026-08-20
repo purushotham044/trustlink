@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Professional Document Detail Screen
+// TrustLink — Professional Document Detail Screen (Responsive)
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
@@ -15,6 +15,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StackScreenProps } from '@react-navigation/stack';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
@@ -29,10 +30,10 @@ import { BlockchainProof, SharePermission } from '@/types';
 import { truncateTxHash } from '@/lib/crypto';
 
 type Props = StackScreenProps<VaultStackParamList, 'DocumentDetail'>;
-
 type ExpiryOption = '1h' | '24h' | '7d' | 'never';
 
 export function DocumentDetailScreen({ route, navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const { document: initialDocument } = route.params;
   const [document, setDocument] = useState(initialDocument);
   const [proof, setProof] = useState<BlockchainProof | null>(null);
@@ -82,10 +83,18 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const handleSystemShare = async () => {
+    try {
+      await shareService.shareViaSystem(document);
+    } catch (err: any) {
+      Alert.alert('Share Note', err.message || 'Could not open system share dialog');
+    }
+  };
+
   const handleDelete = () => {
     Alert.alert(
       'Delete Document',
-      `Are you sure you want to permanently delete "${document.name}"? This will remove the file and all associated share links.`,
+      `Are you sure you want to permanently delete "${document.name}"? This will remove the file from your vault.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -183,11 +192,15 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
       setShareModalVisible(false);
       setShareTarget('');
       Alert.alert(
-        'Document Shared',
-        `"${document.name}" has been shared with ${shareTarget} (${permission === 'DOWNLOAD' ? 'Download & View' : 'View Only'}). You can revoke access at any time from the Sharing tab.`
+        'Access Granted',
+        `"${document.name}" access record has been created for ${shareTarget} (${permission === 'DOWNLOAD' ? 'Download & View' : 'View Only'}). You can manage or revoke access at any time from the Sharing tab.`,
+        [
+          { text: 'Done' },
+          { text: 'Send Link via Apps', onPress: handleSystemShare }
+        ]
       );
     } catch (err: any) {
-      Alert.alert('Share Failed', err.message || 'Could not create share access');
+      Alert.alert('Share Note', err.message || 'Could not record share');
     } finally {
       setSharing(false);
     }
@@ -215,7 +228,10 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+    >
       {/* File Overview Card */}
       <View style={styles.headerCard}>
         <View style={styles.fileIconContainer}>
@@ -385,21 +401,43 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
           variant={document.integrity_status === 'FAILED' ? 'danger' : 'primary'}
           disabled={downloading || deleting || verifying || anchoring}
         />
+        
         <View style={{ height: SPACING.sm }} />
-        <Button 
-          label="Share Document" 
-          onPress={() => setShareModalVisible(true)} 
-          variant="secondary"
-          disabled={downloading || deleting || verifying || anchoring}
-        />
+        
+        {/* Two-Button Sharing Row */}
+        <View style={styles.shareRow}>
+          <TouchableOpacity
+            style={[styles.shareActionBtn, styles.nativeShareBtn]}
+            onPress={handleSystemShare}
+            disabled={downloading || deleting || verifying || anchoring}
+            activeOpacity={0.75}
+          >
+            <Feather name="share-2" size={16} color={COLORS.primary} />
+            <Text style={styles.nativeShareText}>Share via Apps</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.shareActionBtn, styles.vaultShareBtn]}
+            onPress={() => setShareModalVisible(true)}
+            disabled={downloading || deleting || verifying || anchoring}
+            activeOpacity={0.75}
+          >
+            <Feather name="user-check" size={16} color={COLORS.textPrimary} />
+            <Text style={styles.vaultShareText}>Grant In-App Access</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: SPACING.sm }} />
+        
         <Button 
           label={downloading ? 'Downloading File...' : 'Download / View File'} 
           onPress={handleDownload} 
           variant="secondary"
           disabled={downloading || deleting || verifying || anchoring}
         />
+        
         <View style={{ height: SPACING.sm }} />
+        
         <Button 
           label={deleting ? 'Deleting Document...' : 'Delete Document'} 
           onPress={handleDelete} 
@@ -416,19 +454,19 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         onRequestClose={() => setShareModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Share Document</Text>
+              <Text style={styles.modalTitle}>Grant In-App Access</Text>
               <TouchableOpacity onPress={() => setShareModalVisible(false)}>
                 <Feather name="x" size={20} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
             
             <Text style={styles.modalSubtitle}>
-              Grant secure, time-bounded access to another registered TrustLink user.
+              Create a permission-controlled, time-bounded share record for another user.
             </Text>
 
-            <Text style={styles.inputLabel}>Recipient Email Address</Text>
+            <Text style={styles.inputLabel}>Recipient Email or User ID</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. colleague@trustlink.app"
@@ -498,42 +536,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   content: {
-    padding: SPACING.lg,
-    paddingBottom: SPACING.xxxl,
+    padding: SPACING.md + 2,
   },
   headerCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     alignItems: 'center',
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   fileIconContainer: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.surfaceElevated,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
     borderColor: COLORS.surfaceBorder,
   },
   title: {
-    fontSize: TYPOGRAPHY.lg,
+    fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: 4,
+    paddingHorizontal: SPACING.sm,
   },
   meta: {
     fontSize: TYPOGRAPHY.xs,
     color: COLORS.textMuted,
   },
   section: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -614,10 +652,10 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.medium,
   },
   hash: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.primary,
     fontFamily: 'monospace',
-    lineHeight: 18,
+    lineHeight: 16,
     marginTop: 2,
   },
   statusBadge: {
@@ -684,23 +722,55 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   unanchoredText: {
-    fontSize: TYPOGRAPHY.sm,
+    fontSize: TYPOGRAPHY.xs,
     color: COLORS.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   actions: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  shareActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    gap: SPACING.xs,
+  },
+  nativeShareBtn: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.primary,
+  },
+  vaultShareBtn: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+  },
+  nativeShareText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.primary,
+  },
+  vaultShareText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.textPrimary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.xl,
+    padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -711,17 +781,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalTitle: {
-    fontSize: TYPOGRAPHY.lg,
+    fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
   },
   modalSubtitle: {
     fontSize: TYPOGRAPHY.xs,
     color: COLORS.textMuted,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   inputLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
@@ -736,12 +806,12 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     color: COLORS.textPrimary,
     fontSize: TYPOGRAPHY.sm,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   pickerRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   pickerButton: {
     flex: 1,
@@ -777,6 +847,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   modalActions: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
 });

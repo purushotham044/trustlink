@@ -14,6 +14,7 @@ import {
   TextInput,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StackScreenProps } from '@react-navigation/stack';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -32,6 +33,7 @@ type ListItem =
   | { type: 'document'; data: VaultDocument };
 
 export function VaultScreen({ route, navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const { folderId, folderName } = route.params;
 
   const [items, setItems] = useState<ListItem[]>([]);
@@ -54,7 +56,7 @@ export function VaultScreen({ route, navigation }: Props) {
       
       setItems(combined);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load vault contents.');
+      Alert.alert('Vault Notice', err.message || 'Could not refresh vault contents.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -148,14 +150,14 @@ export function VaultScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Search and Action Bar */}
       <View style={styles.topBar}>
         <View style={styles.searchContainer}>
           <Feather name="search" size={16} color={COLORS.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search vault..."
+            placeholder="Search vault files..."
             placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -214,7 +216,7 @@ export function VaultScreen({ route, navigation }: Props) {
           data={filteredItems}
           keyExtractor={(item) => `${item.type}-${item.data.id}`}
           renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
           }
@@ -226,8 +228,8 @@ export function VaultScreen({ route, navigation }: Props) {
               </Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery
-                  ? 'Try a different search keyword'
-                  : 'Tap the upload button above to add documents to this folder'}
+                  ? 'Try a different search keyword.'
+                  : 'Tap the upload button above to add documents to your secure vault.'}
               </Text>
             </View>
           }
@@ -298,7 +300,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingVertical: SPACING.xs + 2,
     backgroundColor: COLORS.surfaceElevated,
   },
   breadcrumbRoot: {
@@ -318,7 +320,6 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xxxl,
   },
   emptyContainer: {
     alignItems: 'center',

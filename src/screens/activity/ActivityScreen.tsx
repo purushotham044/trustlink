@@ -13,12 +13,14 @@ import {
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS, AUDIT_ACTION_LABELS } from '@/constants';
 import { auditService, ExtendedAuditLog, AuditCategory } from '@/services/auditService';
 import { truncateHash, truncateTxHash } from '@/lib/crypto';
 
 export function ActivityScreen() {
+  const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<AuditCategory>('ALL');
   const [logs, setLogs] = useState<ExtendedAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export function ActivityScreen() {
           icon: <Feather name="link" size={14} color={COLORS.blockchain} />,
           color: COLORS.blockchain,
           bgColor: COLORS.blockchainMuted,
-          label: 'Blockchain Anchored',
+          label: 'Blockchain Proof Anchored',
         };
       case 'BLOCKCHAIN_ANCHOR_FAILED':
         return {
@@ -67,14 +69,14 @@ export function ActivityScreen() {
           icon: <Feather name="lock" size={14} color={COLORS.primary} />,
           color: COLORS.primary,
           bgColor: COLORS.primaryMuted,
-          label: 'SHA-256 Hash Generated',
+          label: 'Digital Fingerprint Generated',
         };
       case 'DOCUMENT_VERIFIED':
         return {
           icon: <Feather name="check-circle" size={14} color={COLORS.success} />,
           color: COLORS.success,
           bgColor: COLORS.successMuted,
-          label: 'Integrity Verified',
+          label: 'Cryptographic Integrity Verified',
         };
       case 'DOCUMENT_SHARED':
         return {
@@ -88,7 +90,7 @@ export function ActivityScreen() {
           icon: <Feather name="slash" size={14} color={COLORS.danger} />,
           color: COLORS.danger,
           bgColor: COLORS.dangerMuted,
-          label: 'Share Revoked',
+          label: 'Share Access Revoked',
         };
       case 'DOCUMENT_UPLOADED':
         return {
@@ -159,7 +161,7 @@ export function ActivityScreen() {
             </View>
           ) : item.document_id ? (
             <Text style={styles.documentIdText} numberOfLines={1}>
-              ID: {item.document_id}
+              Doc ID: {item.document_id}
             </Text>
           ) : null}
 
@@ -205,7 +207,7 @@ export function ActivityScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Category Pills */}
       <View style={styles.filterWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
@@ -233,7 +235,7 @@ export function ActivityScreen() {
           data={logs}
           keyExtractor={(item) => item.id}
           renderItem={renderTimelineItem}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
           }
@@ -242,7 +244,7 @@ export function ActivityScreen() {
               <Feather name="activity" size={44} color={COLORS.textMuted} style={styles.emptyIcon} />
               <Text style={styles.emptyTitle}>No Activity Recorded Yet</Text>
               <Text style={styles.emptySubtitle}>
-                Security events, document hashes, blockchain proofs, and sharing actions will appear here in chronological order.
+                Security events, document hashes, blockchain proofs, and sharing actions will appear here in an append-only audit trail.
               </Text>
             </View>
           }
@@ -289,7 +291,6 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xxxl,
   },
   center: {
     flex: 1,
