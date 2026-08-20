@@ -40,6 +40,7 @@ type ListItem =
 export function VaultScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { folderId, folderName } = route.params;
+  const isInsideFolder = Boolean(folderId);
 
   const [items, setItems] = useState<ListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +48,7 @@ export function VaultScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Cross-Platform Folder Modal State
+  // Cross-Platform Folder Modal State (Only used at Root level)
   const [folderModalVisible, setFolderModalVisible] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -55,7 +56,7 @@ export function VaultScreen({ route, navigation }: Props) {
   const loadData = async () => {
     try {
       const [folders, documents] = await Promise.all([
-        folderService.getFolders(folderId),
+        isInsideFolder ? Promise.resolve([]) : folderService.getFolders(null),
         documentService.getDocuments(folderId),
       ]);
 
@@ -103,7 +104,7 @@ export function VaultScreen({ route, navigation }: Props) {
 
     try {
       setCreatingFolder(true);
-      await folderService.createFolder(trimmed, folderId);
+      await folderService.createFolder(trimmed, null);
       setFolderModalVisible(false);
       setNewFolderName('');
       loadData();
@@ -165,11 +166,21 @@ export function VaultScreen({ route, navigation }: Props) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Search and Action Bar */}
       <View style={styles.topBar}>
+        {isInsideFolder && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Feather name="arrow-left" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
+
         <View style={styles.searchContainer}>
           <Feather name="search" size={16} color={COLORS.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search vault files..."
+            placeholder={isInsideFolder ? `Search in ${folderName}...` : "Search vault files..."}
             placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -184,13 +195,16 @@ export function VaultScreen({ route, navigation }: Props) {
         </View>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.actionIconButton}
-            onPress={handleOpenCreateFolderModal}
-            activeOpacity={0.7}
-          >
-            <Feather name="folder-plus" size={18} color={COLORS.primary} />
-          </TouchableOpacity>
+          {/* Only show "New Folder" at Root Level */}
+          {!isInsideFolder && (
+            <TouchableOpacity
+              style={styles.actionIconButton}
+              onPress={handleOpenCreateFolderModal}
+              activeOpacity={0.7}
+            >
+              <Feather name="folder-plus" size={18} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.actionIconButton, styles.uploadButton]}
@@ -207,13 +221,13 @@ export function VaultScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {/* Breadcrumb path if nested */}
-      {folderId && (
+      {/* Breadcrumb path if inside folder */}
+      {isInsideFolder && (
         <View style={styles.breadcrumb}>
           <TouchableOpacity onPress={() => navigation.popToTop()}>
-            <Text style={styles.breadcrumbRoot}>Vault</Text>
+            <Text style={styles.breadcrumbRoot}>Vault Root</Text>
           </TouchableOpacity>
-          <Text style={styles.breadcrumbDivider}> / </Text>
+          <Text style={styles.breadcrumbDivider}> › </Text>
           <Text style={styles.breadcrumbCurrent} numberOfLines={1}>{folderName}</Text>
         </View>
       )}
@@ -234,23 +248,33 @@ export function VaultScreen({ route, navigation }: Props) {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Feather name="folder" size={48} color={COLORS.textMuted} style={styles.emptyIcon} />
+              <Feather name={isInsideFolder ? "file" : "folder"} size={48} color={COLORS.textMuted} style={styles.emptyIcon} />
               <Text style={styles.emptyTitle}>
-                {searchQuery ? 'No matching files or folders' : 'This folder is empty'}
+                {searchQuery
+                  ? 'No matching files found'
+                  : isInsideFolder
+                  ? `No files in "${folderName}"`
+                  : 'Your Vault is empty'}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery
-                  ? 'Try a different search keyword.'
-                  : 'Tap the folder or upload icon above to organize your vault.'}
+                  ? 'Try searching with a different term.'
+                  : isInsideFolder
+                  ? 'Upload documents to securely store them inside this folder.'
+                  : 'Create a folder or upload documents directly into your secure vault.'}
               </Text>
+
               <View style={styles.emptyActions}>
-                <TouchableOpacity
-                  style={styles.emptyActionButton}
-                  onPress={handleOpenCreateFolderModal}
-                >
-                  <Feather name="folder-plus" size={14} color={COLORS.primary} />
-                  <Text style={styles.emptyActionText}>New Folder</Text>
-                </TouchableOpacity>
+                {!isInsideFolder && (
+                  <TouchableOpacity
+                    style={styles.emptyActionButton}
+                    onPress={handleOpenCreateFolderModal}
+                  >
+                    <Feather name="folder-plus" size={14} color={COLORS.primary} />
+                    <Text style={styles.emptyActionText}>New Folder</Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   style={[styles.emptyActionButton, styles.emptyUploadButton]}
                   onPress={handleUploadFile}
@@ -264,7 +288,7 @@ export function VaultScreen({ route, navigation }: Props) {
         />
       )}
 
-      {/* Cross-Platform New Folder Modal */}
+      {/* Cross-Platform New Folder Modal (Root Level Only) */}
       <Modal
         visible={folderModalVisible}
         transparent={true}
@@ -342,6 +366,16 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
     backgroundColor: COLORS.surface,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -384,7 +418,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
+    paddingVertical: SPACING.sm,
     backgroundColor: COLORS.surfaceElevated,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -401,7 +435,7 @@ const styles = StyleSheet.create({
   breadcrumbCurrent: {
     fontSize: TYPOGRAPHY.xs,
     color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.medium,
+    fontWeight: TYPOGRAPHY.bold,
     flexShrink: 1,
   },
   list: {
@@ -420,7 +454,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: COLORS.textPrimary,
     fontSize: TYPOGRAPHY.base,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontWeight: TYPOGRAPHY.bold,
     marginBottom: 4,
     textAlign: 'center',
   },
