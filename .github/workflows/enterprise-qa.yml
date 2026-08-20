@@ -1,0 +1,169 @@
+name: TrustLink Enterprise QA, Performance & Security Ecosystem
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Stage 1: TypeScript & Static Analysis
+  # ─────────────────────────────────────────────────────────────
+  typecheck-and-lint:
+    name: 🛡️ Static Analysis & TypeScript Compilation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run TypeScript Verification (0 Errors Policy)
+        run: npx tsc --noEmit
+
+  # ─────────────────────────────────────────────────────────────
+  # Stage 2: Unit & Cryptographic Test Matrix (400 Tests)
+  # ─────────────────────────────────────────────────────────────
+  unit-and-crypto-tests:
+    name: ⚡ 400 Core Cryptographic & Architecture Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci --legacy-peer-deps
+      - name: Run Jest Test Suite
+        run: npm test -- --ci --coverage --maxWorkers=4
+
+  # ─────────────────────────────────────────────────────────────
+  # Stage 3: Appium 2.x Mobile Automation
+  # ─────────────────────────────────────────────────────────────
+  mobile-appium-e2e:
+    name: 📱 Appium 2.x Mobile Automation
+    runs-on: ubuntu-latest
+    needs: [typecheck-and-lint, unit-and-crypto-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install QA Framework Dependencies
+        working-directory: qa-automation
+        run: npm ci
+
+      - name: Execute Appium 2.x Test Suite
+        working-directory: qa-automation
+        run: npm run test:mobile
+
+      - name: Upload Mobile Test Excel Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustlink-mobile-qa-report
+          path: qa-automation/reports/*.xlsx
+
+  # ─────────────────────────────────────────────────────────────
+  # Stage 4: Selenium Web Automation
+  # ─────────────────────────────────────────────────────────────
+  web-selenium-e2e:
+    name: 🌐 Selenium Web E2E Automation
+    runs-on: ubuntu-latest
+    needs: [typecheck-and-lint, unit-and-crypto-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install QA Framework Dependencies
+        working-directory: qa-automation
+        run: npm ci
+
+      - name: Execute Selenium Web Test Suite
+        working-directory: qa-automation
+        run: npm run test:web
+
+      - name: Upload Web Test Excel Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustlink-web-qa-report
+          path: qa-automation/reports/*.xlsx
+
+  # ─────────────────────────────────────────────────────────────
+  # Stage 5: AI-Powered Test Discovery & Penetration Audit
+  # ─────────────────────────────────────────────────────────────
+  ai-discovery-and-security:
+    name: 🤖 AI Test Discovery & DevSecOps Penetration
+    runs-on: ubuntu-latest
+    needs: [typecheck-and-lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install QA Framework Dependencies
+        working-directory: qa-automation
+        run: npm ci
+
+      - name: Run AI Autonomous Test Discovery
+        working-directory: qa-automation
+        run: npm run test:ai-discovery
+
+      - name: Run DevSecOps Penetration Suite
+        working-directory: qa-automation
+        run: npm run test:security
+
+      - name: Upload Security & AI Discovery Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustlink-security-and-ai-reports
+          path: qa-automation/reports/*.xlsx
+
+  # ─────────────────────────────────────────────────────────────
+  # Stage 6: Grafana k6 Load Performance & SLA Enforcement
+  # ─────────────────────────────────────────────────────────────
+  k6-load-performance:
+    name: 📊 Grafana k6 Load & Latency SLA Validation
+    runs-on: ubuntu-latest
+    needs: [typecheck-and-lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Execute k6 Load Test
+        working-directory: qa-automation
+        run: |
+          k6 run load/k6-suite.js --summary-export=reports/k6-summary.json
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Upload k6 Performance Summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trustlink-k6-performance-report
+          path: qa-automation/reports/k6-summary.json
