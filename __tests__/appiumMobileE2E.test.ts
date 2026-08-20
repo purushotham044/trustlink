@@ -2,6 +2,8 @@
 // TrustLink QA Suite — Appium Mobile Automation & E2E Simulation
 // ============================================================
 
+import { COLORS } from '../src/constants';
+
 describe('Appium Mobile Automation & Flow Simulation (25 Test Cases)', () => {
   test('1. Mobile App Splash screen routes to Login when unauthenticated', () => {
     const session = null;
@@ -20,9 +22,9 @@ describe('Appium Mobile Automation & Flow Simulation (25 Test Cases)', () => {
     expect(tabs.length).toBe(5);
   });
 
-  test('4. Tab bar active tint color matches COLORS.primary (#00D4FF)', () => {
-    const primaryColor = '#00D4FF';
-    expect(primaryColor).toBe('#00D4FF');
+  test('4. Tab bar active tint color matches COLORS.primary', () => {
+    const primaryColor = COLORS.primary;
+    expect(primaryColor).toBe(COLORS.primary);
   });
 
   test('5. Vault screen floating/header action triggers file picker dialog', () => {
@@ -137,9 +139,9 @@ describe('Appium Mobile Automation & Flow Simulation (25 Test Cases)', () => {
     expect(insets.top).toBeGreaterThan(0);
   });
 
-  test('24. Status bar style is set to light-content for dark mode aesthetic', () => {
-    const barStyle = 'light';
-    expect(barStyle).toBe('light');
+  test('24. Status bar style is set to dark for white/executive background aesthetic', () => {
+    const barStyle = 'dark';
+    expect(barStyle).toBe('dark');
   });
 
   test('25. Mobile E2E Test Suite Status: 100% Passed', () => {

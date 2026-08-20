@@ -1,5 +1,6 @@
 // ============================================================
 // TrustLink — Professional Vault Screen (File & Folder Explorer)
+// Cross-Platform: Works seamlessly on Android (OPPO F23), iOS & Web
 // ============================================================
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -13,6 +14,9 @@ import {
   ActivityIndicator,
   TextInput,
   RefreshControl,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StackScreenProps } from '@react-navigation/stack';
@@ -25,6 +29,7 @@ import { documentService } from '@/services/documentService';
 import { Folder, Document as VaultDocument } from '@/types';
 import { FolderCard } from '@/components/vault/FolderCard';
 import { DocumentCard } from '@/components/vault/DocumentCard';
+import { Button } from '@/components/common/Button';
 
 type Props = StackScreenProps<VaultStackParamList, 'VaultRoot'>;
 
@@ -41,6 +46,11 @@ export function VaultScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Cross-Platform Folder Modal State
+  const [folderModalVisible, setFolderModalVisible] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   const loadData = async () => {
     try {
@@ -79,27 +89,29 @@ export function VaultScreen({ route, navigation }: Props) {
     return items.filter(item => item.data.name.toLowerCase().includes(q));
   }, [items, searchQuery]);
 
-  const handleCreateFolder = () => {
-    Alert.prompt(
-      'New Folder',
-      'Enter a name for the folder',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Create', 
-          onPress: async (name?: string) => {
-            if (!name?.trim()) return;
-            try {
-              await folderService.createFolder(name.trim(), folderId);
-              loadData();
-            } catch (err: any) {
-              Alert.alert('Error', err.message);
-            }
-          }
-        }
-      ],
-      'plain-text'
-    );
+  const handleOpenCreateFolderModal = () => {
+    setNewFolderName('');
+    setFolderModalVisible(true);
+  };
+
+  const handleConfirmCreateFolder = async () => {
+    const trimmed = newFolderName.trim();
+    if (!trimmed) {
+      Alert.alert('Required', 'Please enter a name for the folder.');
+      return;
+    }
+
+    try {
+      setCreatingFolder(true);
+      await folderService.createFolder(trimmed, folderId);
+      setFolderModalVisible(false);
+      setNewFolderName('');
+      loadData();
+    } catch (err: any) {
+      Alert.alert('Create Folder Failed', err.message || 'Could not create folder');
+    } finally {
+      setCreatingFolder(false);
+    }
   };
 
   const handleUploadFile = async () => {
@@ -174,10 +186,10 @@ export function VaultScreen({ route, navigation }: Props) {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.actionIconButton}
-            onPress={handleCreateFolder}
+            onPress={handleOpenCreateFolderModal}
             activeOpacity={0.7}
           >
-            <Feather name="folder-plus" size={18} color={COLORS.textPrimary} />
+            <Feather name="folder-plus" size={18} color={COLORS.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -229,12 +241,83 @@ export function VaultScreen({ route, navigation }: Props) {
               <Text style={styles.emptySubtitle}>
                 {searchQuery
                   ? 'Try a different search keyword.'
-                  : 'Tap the upload button above to add documents to your secure vault.'}
+                  : 'Tap the folder or upload icon above to organize your vault.'}
               </Text>
+              <View style={styles.emptyActions}>
+                <TouchableOpacity
+                  style={styles.emptyActionButton}
+                  onPress={handleOpenCreateFolderModal}
+                >
+                  <Feather name="folder-plus" size={14} color={COLORS.primary} />
+                  <Text style={styles.emptyActionText}>New Folder</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.emptyActionButton, styles.emptyUploadButton]}
+                  onPress={handleUploadFile}
+                >
+                  <Feather name="upload" size={14} color={COLORS.textInverse} />
+                  <Text style={[styles.emptyActionText, { color: COLORS.textInverse }]}>Upload File</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           }
         />
       )}
+
+      {/* Cross-Platform New Folder Modal */}
+      <Modal
+        visible={folderModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFolderModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconBox}>
+                <Feather name="folder-plus" size={20} color={COLORS.primary} />
+              </View>
+              <View style={styles.modalHeaderInfo}>
+                <Text style={styles.modalTitle}>Create New Folder</Text>
+                <Text style={styles.modalSubtitle}>Organize documents inside your secure vault</Text>
+              </View>
+            </View>
+
+            <TextInput
+              style={styles.folderInput}
+              placeholder="e.g. Legal Documents, Invoices, Tax"
+              placeholderTextColor={COLORS.textMuted}
+              value={newFolderName}
+              onChangeText={setNewFolderName}
+              autoFocus={true}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={handleConfirmCreateFolder}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setFolderModalVisible(false)}
+                disabled={creatingFolder}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <Button
+                label={creatingFolder ? 'Creating...' : 'Create Folder'}
+                onPress={handleConfirmCreateFolder}
+                disabled={creatingFolder || !newFolderName.trim()}
+                variant="primary"
+                style={styles.createButton}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -257,12 +340,13 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surfaceElevated,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     height: 40,
@@ -286,7 +370,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
     borderColor: COLORS.border,
     justifyContent: 'center',
@@ -302,6 +386,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs + 2,
     backgroundColor: COLORS.surfaceElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   breadcrumbRoot: {
     fontSize: TYPOGRAPHY.xs,
@@ -343,5 +429,107 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sm,
     textAlign: 'center',
     lineHeight: 18,
+    marginBottom: SPACING.lg,
+  },
+  emptyActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  emptyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
+  },
+  emptyUploadButton: {
+    backgroundColor: COLORS.primary,
+  },
+  emptyActionText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: 'rgba(15, 23, 42, 0.15)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  modalIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalHeaderInfo: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  folderInput: {
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.sm,
+    marginBottom: SPACING.lg,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  cancelButton: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.md,
+  },
+  cancelButtonText: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: TYPOGRAPHY.medium,
+    color: COLORS.textMuted,
+  },
+  createButton: {
+    minWidth: 120,
   },
 });
