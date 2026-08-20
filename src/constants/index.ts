@@ -130,6 +130,12 @@ export const SHARE_DURATIONS: Record<string, number | null> = {
 // ── Audit Actions ────────────────────────────────────────────
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  USER_LOGIN: 'User signed in',
+  USER_LOGOUT: 'User signed out',
+  USER_REGISTERED: 'User account created',
+  FOLDER_CREATED: 'Folder created',
+  FOLDER_RENAMED: 'Folder renamed',
+  FOLDER_DELETED: 'Folder deleted',
   DOCUMENT_UPLOADED: 'Document uploaded',
   DOCUMENT_VIEWED: 'Document viewed',
   DOCUMENT_DOWNLOADED: 'Document downloaded',

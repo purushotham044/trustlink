@@ -84,9 +84,10 @@ export const documentService = {
     const sha256Hash = ethers.sha256(uint8Array).replace('0x', '').toLowerCase();
 
     // 3. Upload to Storage
-    // Path: {user_id}/{timestamp}_{sanitized_filename}
+    // Path: {user_id}/[folders/{folder_id}/]{timestamp}_{sanitized_filename}
     const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const storagePath = `${user.user.id}/${Date.now()}_${safeFileName}`;
+    const folderPrefix = folderId ? `folders/${folderId}/` : '';
+    const storagePath = `${user.user.id}/${folderPrefix}${Date.now()}_${safeFileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('documents')

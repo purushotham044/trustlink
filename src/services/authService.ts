@@ -5,6 +5,7 @@
 // No custom password management.
 // No manual JWT handling.
 // Google OAuth via Supabase + expo-web-browser.
+// Automatically records user security audit logs to PostgreSQL.
 // ============================================================
 
 import * as WebBrowser from 'expo-web-browser';
@@ -22,19 +23,36 @@ export interface AuthResult {
   error?: string;
 }
 
+// ── Helper: Audit Event Logging ───────────────────────────────
+
+async function logAuthAudit(action: 'USER_LOGIN' | 'USER_LOGOUT' | 'USER_REGISTERED', userId?: string, metadata?: Record<string, unknown>) {
+  try {
+    const targetUserId = userId || (await supabase.auth.getUser()).data.user?.id;
+    if (!targetUserId) return;
+
+    await supabase.from('audit_logs').insert({
+      user_id: targetUserId,
+      action,
+      metadata: metadata || {},
+    });
+  } catch (e) {
+    // Non-blocking
+  }
+}
+
 // ── Email Authentication ──────────────────────────────────────
 
 /**
  * Register a new user with email and password.
- * Supabase handles password hashing — we never store passwords ourselves.
  */
 export async function signUpWithEmail(
   email: string,
   password: string,
   fullName: string
 ): Promise<AuthResult> {
-  const { error } = await supabase.auth.signUp({
-    email: email.trim().toLowerCase(),
+  const cleanEmail = email.trim().toLowerCase();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
     password,
     options: {
       data: {
@@ -46,6 +64,11 @@ export async function signUpWithEmail(
   if (error) {
     return { success: false, error: error.message };
   }
+
+  if (data?.user?.id) {
+    await logAuthAudit('USER_REGISTERED', data.user.id, { email: cleanEmail, full_name: fullName.trim() });
+  }
+
   return { success: true };
 }
 
@@ -56,14 +79,20 @@ export async function signInWithEmail(
   email: string,
   password: string
 ): Promise<AuthResult> {
-  const { error } = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
+  const cleanEmail = email.trim().toLowerCase();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
     password,
   });
 
   if (error) {
     return { success: false, error: error.message };
   }
+
+  if (data?.user?.id) {
+    await logAuthAudit('USER_LOGIN', data.user.id, { method: 'email_password', email: cleanEmail });
+  }
+
   return { success: true };
 }
 
@@ -71,14 +100,6 @@ export async function signInWithEmail(
 
 /**
  * Initiate Google OAuth via Supabase.
- *
- * Flow:
- *   1. Generate redirect URI using app's trustlink:// scheme
- *   2. Get OAuth URL from Supabase
- *   3. Open browser for user sign-in
- *   4. Supabase handles the callback and sets the session
- *
- * Security: OAuth secrets live only in Supabase — never in this app.
  */
 export async function signInWithGoogle(): Promise<AuthResult> {
   const redirectUri = makeRedirectUri({
@@ -101,34 +122,38 @@ export async function signInWithGoogle(): Promise<AuthResult> {
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
 
   if (result.type === 'success' && result.url) {
-    // Extract tokens from the callback URL and set the session
     const url = new URL(result.url);
     const params = new URLSearchParams(url.hash.substring(1));
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
 
     if (accessToken && refreshToken) {
-      const { error: sessionError } = await supabase.auth.setSession({
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       });
       if (sessionError) {
         return { success: false, error: sessionError.message };
       }
+      if (sessionData?.user?.id) {
+        await logAuthAudit('USER_LOGIN', sessionData.user.id, { method: 'google_oauth' });
+      }
       return { success: true };
     }
 
-    // Some providers use query params instead of hash
     const qParams = url.searchParams;
     const qAccessToken = qParams.get('access_token');
     const qRefreshToken = qParams.get('refresh_token');
     if (qAccessToken && qRefreshToken) {
-      const { error: sessionError } = await supabase.auth.setSession({
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: qAccessToken,
         refresh_token: qRefreshToken,
       });
       if (sessionError) {
         return { success: false, error: sessionError.message };
+      }
+      if (sessionData?.user?.id) {
+        await logAuthAudit('USER_LOGIN', sessionData.user.id, { method: 'google_oauth' });
       }
       return { success: true };
     }
@@ -162,8 +187,12 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 /**
- * Sign out — clears session from secure store.
+ * Sign out — logs event and clears session from secure store.
  */
 export async function signOut(): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  if (user?.user?.id) {
+    await logAuthAudit('USER_LOGOUT', user.user.id);
+  }
   await supabase.auth.signOut();
 }

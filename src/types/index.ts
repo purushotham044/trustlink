@@ -87,6 +87,12 @@ export interface DocumentShare {
 // ── Audit Logs ───────────────────────────────────────────────
 
 export type AuditAction =
+  | 'USER_LOGIN'
+  | 'USER_LOGOUT'
+  | 'USER_REGISTERED'
+  | 'FOLDER_CREATED'
+  | 'FOLDER_RENAMED'
+  | 'FOLDER_DELETED'
   | 'DOCUMENT_UPLOADED'
   | 'DOCUMENT_VIEWED'
   | 'DOCUMENT_DOWNLOADED'

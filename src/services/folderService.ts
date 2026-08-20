@@ -33,7 +33,7 @@ export const folderService = {
   },
 
   /**
-   * Creates a new folder.
+   * Creates a new folder and logs audit event.
    */
   async createFolder(name: string, parentFolderId: string | null = null): Promise<Folder> {
     const { data: user } = await supabase.auth.getUser();
@@ -66,13 +66,24 @@ export const folderService = {
       .single();
 
     if (error) throw error;
+
+    // Log to backend audit trail
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: user.user.id,
+        action: 'FOLDER_CREATED',
+        metadata: { folder_id: data.id, folder_name: name, parent_folder_id: parentFolderId },
+      });
+    } catch (e) {}
+
     return data as Folder;
   },
 
   /**
-   * Renames a folder.
+   * Renames a folder and logs audit event.
    */
   async renameFolder(folderId: string, newName: string): Promise<Folder> {
+    const { data: user } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('folders')
       .update({ name: newName })
@@ -81,6 +92,18 @@ export const folderService = {
       .single();
 
     if (error) throw error;
+
+    // Log to backend audit trail
+    if (user?.user) {
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: user.user.id,
+          action: 'FOLDER_RENAMED',
+          metadata: { folder_id: folderId, new_name: newName },
+        });
+      } catch (e) {}
+    }
+
     return data as Folder;
   },
 
@@ -108,17 +131,38 @@ export const folderService = {
       .eq('owner_id', user.user.id);
 
     if (deleteError) throw deleteError;
+
+    // 3. Log to backend audit trail
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: user.user.id,
+        action: 'FOLDER_DELETED',
+        metadata: { folder_id: folderId, preserved_files: true },
+      });
+    } catch (e) {}
   },
 
   /**
    * Deletes a folder and all documents inside it.
    */
   async deleteFolder(folderId: string): Promise<void> {
+    const { data: user } = await supabase.auth.getUser();
     const { error } = await supabase
       .from('folders')
       .delete()
       .eq('id', folderId);
 
     if (error) throw error;
+
+    // Log to backend audit trail
+    if (user?.user) {
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: user.user.id,
+          action: 'FOLDER_DELETED',
+          metadata: { folder_id: folderId, cascade_files: true },
+        });
+      } catch (e) {}
+    }
   }
 };
