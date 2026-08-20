@@ -24,6 +24,7 @@ interface TextInputProps {
   keyboardType?: KeyboardTypeOptions;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoComplete?: string;
+  autoCorrect?: boolean;
   error?: string;
   disabled?: boolean;
   multiline?: boolean;
@@ -39,6 +40,7 @@ export function TextInput({
   secureTextEntry = false,
   keyboardType = 'default',
   autoCapitalize = 'none',
+  autoCorrect,
   error,
   disabled = false,
   multiline = false,
@@ -67,6 +69,7 @@ export function TextInput({
           secureTextEntry={secureTextEntry && !showPassword}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           editable={!disabled}
           multiline={multiline}
           numberOfLines={multiline ? numberOfLines : 1}
@@ -117,15 +120,15 @@ const styles = StyleSheet.create({
   inputWrapperFocused: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.surface,
-  } as ViewStyle,
+  },
 
   inputWrapperError: {
     borderColor: COLORS.danger,
-  } as ViewStyle,
+  },
 
   inputWrapperDisabled: {
     opacity: 0.5,
-  } as ViewStyle,
+  },
 
   input: {
     flex: 1,

@@ -30,10 +30,28 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const formatAuthError = (errString: string): string => {
+    const lower = errString.toLowerCase();
+    if (lower.includes('invalid login credentials')) {
+      return 'Invalid email or password. Please verify your credentials or create an account.';
+    }
+    if (lower.includes('email not confirmed')) {
+      return 'Email not confirmed. Please check your inbox for the confirmation link before signing in.';
+    }
+    if (lower.includes('failed to fetch') || lower.includes('network') || lower.includes('network request failed')) {
+      return 'Network connection issue. Please check your internet connection and try again.';
+    }
+    if (lower.includes('rate limit') || lower.includes('too many requests')) {
+      return 'Too many sign-in attempts. Please wait a moment and try again.';
+    }
+    return errString;
+  };
+
   const handleEmailLogin = async () => {
     setError(null);
 
-    if (!email.trim()) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
       setError('Please enter your email address.');
       return;
     }
@@ -42,9 +60,9 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps) {
       return;
     }
 
-    const result = await signInWithEmail(email, password);
+    const result = await signInWithEmail(cleanEmail, password);
     if (!result.success) {
-      setError(result.error ?? 'Sign-in failed. Please verify your credentials.');
+      setError(formatAuthError(result.error ?? 'Sign-in failed. Please verify your credentials.'));
     }
   };
 
@@ -52,7 +70,7 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps) {
     setError(null);
     const result = await signInWithGoogle();
     if (!result.success && result.error !== 'Sign-in was cancelled') {
-      setError(result.error ?? 'Google sign-in failed.');
+      setError(formatAuthError(result.error ?? 'Google sign-in failed.'));
     }
   };
 
@@ -83,16 +101,23 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps) {
             label="Email"
             placeholder="name@company.com"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (error) setError(null);
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <TextInput
             label="Password"
             placeholder="••••••••••••"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error) setError(null);
+            }}
             secureTextEntry
           />
 

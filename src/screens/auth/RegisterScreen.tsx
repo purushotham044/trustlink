@@ -33,6 +33,20 @@ export function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const formatRegisterError = (errString: string): string => {
+    const lower = errString.toLowerCase();
+    if (lower.includes('user already registered') || lower.includes('already exists')) {
+      return 'An account with this email already exists. Please sign in instead.';
+    }
+    if (lower.includes('password should be at least')) {
+      return 'Password must be at least 8 characters long.';
+    }
+    if (lower.includes('failed to fetch') || lower.includes('network')) {
+      return 'Network connection issue. Please check your internet connection.';
+    }
+    return errString;
+  };
+
   const validate = (): string | null => {
     if (!fullName.trim()) return 'Full name is required.';
     if (!email.trim()) return 'Email address is required.';
@@ -52,12 +66,12 @@ export function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps) {
       return;
     }
 
-    const result = await signUpWithEmail(email, password, fullName);
+    const result = await signUpWithEmail(email.trim(), password, fullName.trim());
     if (!result.success) {
-      setError(result.error ?? 'Registration failed. Please try again.');
+      setError(formatRegisterError(result.error ?? 'Registration failed. Please try again.'));
     } else {
       setSuccessMessage(
-        'Account created! Check your email to confirm your address, then sign in.'
+        'Account created successfully! Check your email to confirm your address, then sign in.'
       );
     }
   };
@@ -96,7 +110,10 @@ export function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps) {
             label="Full Name"
             placeholder="Jane Smith"
             value={fullName}
-            onChangeText={setFullName}
+            onChangeText={(text) => {
+              setFullName(text);
+              if (error) setError(null);
+            }}
             autoCapitalize="words"
           />
 
@@ -104,16 +121,23 @@ export function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps) {
             label="Email"
             placeholder="name@company.com"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (error) setError(null);
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <TextInput
             label="Password"
             placeholder="Minimum 8 characters"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error) setError(null);
+            }}
             secureTextEntry
           />
 
@@ -121,7 +145,10 @@ export function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps) {
             label="Confirm Password"
             placeholder="Repeat password"
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (error) setError(null);
+            }}
             secureTextEntry
           />
 
