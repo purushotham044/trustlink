@@ -11,9 +11,10 @@ import { Folder } from '@/types';
 interface FolderCardProps {
   folder: Folder;
   onPress: () => void;
+  onOptionsPress?: () => void;
 }
 
-export function FolderCard({ folder, onPress }: FolderCardProps) {
+export function FolderCard({ folder, onPress, onOptionsPress }: FolderCardProps) {
   return (
     <TouchableOpacity
       style={styles.card}
@@ -29,6 +30,17 @@ export function FolderCard({ folder, onPress }: FolderCardProps) {
           {folder.name}
         </Text>
       </View>
+
+      {onOptionsPress && (
+        <TouchableOpacity
+          style={styles.optionsButton}
+          onPress={onOptionsPress}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.6}
+        >
+          <Feather name="more-vertical" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
+      )}
 
       <Feather name="chevron-right" size={18} color={COLORS.textMuted} />
     </TouchableOpacity>
@@ -65,5 +77,10 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sm,
     fontWeight: TYPOGRAPHY.semibold,
     color: COLORS.textPrimary,
+  },
+  optionsButton: {
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.xs,
+    marginRight: SPACING.xs,
   },
 });

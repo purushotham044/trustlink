@@ -48,10 +48,12 @@ export function VaultScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Cross-Platform Folder Modal State (Only used at Root level)
+  // Folder Modal State (Create / Rename)
   const [folderModalVisible, setFolderModalVisible] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [folderModalMode, setFolderModalMode] = useState<'create' | 'rename'>('create');
+  const [targetFolder, setTargetFolder] = useState<Folder | null>(null);
+  const [folderInputText, setFolderInputText] = useState('');
+  const [savingFolder, setSavingFolder] = useState(false);
 
   const loadData = async () => {
     try {
@@ -91,27 +93,102 @@ export function VaultScreen({ route, navigation }: Props) {
   }, [items, searchQuery]);
 
   const handleOpenCreateFolderModal = () => {
-    setNewFolderName('');
+    setFolderModalMode('create');
+    setTargetFolder(null);
+    setFolderInputText('');
     setFolderModalVisible(true);
   };
 
-  const handleConfirmCreateFolder = async () => {
-    const trimmed = newFolderName.trim();
+  const handleOpenRenameFolderModal = (folder: Folder) => {
+    setFolderModalMode('rename');
+    setTargetFolder(folder);
+    setFolderInputText(folder.name);
+    setFolderModalVisible(true);
+  };
+
+  const handleFolderOptions = (folder: Folder) => {
+    Alert.alert(
+      `Folder: ${folder.name}`,
+      'Manage this vault folder',
+      [
+        {
+          text: 'Rename Folder',
+          onPress: () => handleOpenRenameFolderModal(folder),
+        },
+        {
+          text: 'Delete Folder (Keep Files in Main Vault)',
+          onPress: () => {
+            Alert.alert(
+              'Keep Files & Delete Folder',
+              `All documents inside "${folder.name}" will be moved safely to your main vault. Only the folder will be removed.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Move Files & Delete Folder',
+                  onPress: async () => {
+                    try {
+                      await folderService.deleteFolderPreservingFiles(folder.id);
+                      loadData();
+                    } catch (err: any) {
+                      Alert.alert('Error', err.message || 'Could not delete folder');
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        },
+        {
+          text: 'Delete Folder and All Files',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Delete Everything',
+              `Permanently delete "${folder.name}" and all documents stored inside it?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Everything',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await folderService.deleteFolder(folder.id);
+                      loadData();
+                    } catch (err: any) {
+                      Alert.alert('Error', err.message || 'Could not delete folder');
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const handleConfirmFolderSubmit = async () => {
+    const trimmed = folderInputText.trim();
     if (!trimmed) {
       Alert.alert('Required', 'Please enter a name for the folder.');
       return;
     }
 
     try {
-      setCreatingFolder(true);
-      await folderService.createFolder(trimmed, null);
+      setSavingFolder(true);
+      if (folderModalMode === 'create') {
+        await folderService.createFolder(trimmed, null);
+      } else if (targetFolder) {
+        await folderService.renameFolder(targetFolder.id, trimmed);
+      }
       setFolderModalVisible(false);
-      setNewFolderName('');
+      setFolderInputText('');
       loadData();
     } catch (err: any) {
-      Alert.alert('Create Folder Failed', err.message || 'Could not create folder');
+      Alert.alert('Operation Failed', err.message || 'Could not save folder');
     } finally {
-      setCreatingFolder(false);
+      setSavingFolder(false);
     }
   };
 
@@ -150,6 +227,7 @@ export function VaultScreen({ route, navigation }: Props) {
             folderId: item.data.id, 
             folderName: item.data.name 
           })} 
+          onOptionsPress={() => handleFolderOptions(item.data)}
         />
       );
     } else {
@@ -288,7 +366,7 @@ export function VaultScreen({ route, navigation }: Props) {
         />
       )}
 
-      {/* Cross-Platform New Folder Modal (Root Level Only) */}
+      {/* Cross-Platform Folder Modal (Create & Rename) */}
       <Modal
         visible={folderModalVisible}
         transparent={true}
@@ -302,10 +380,12 @@ export function VaultScreen({ route, navigation }: Props) {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalIconBox}>
-                <Feather name="folder-plus" size={20} color={COLORS.primary} />
+                <Feather name={folderModalMode === 'create' ? "folder-plus" : "edit-2"} size={20} color={COLORS.primary} />
               </View>
               <View style={styles.modalHeaderInfo}>
-                <Text style={styles.modalTitle}>Create New Folder</Text>
+                <Text style={styles.modalTitle}>
+                  {folderModalMode === 'create' ? 'Create New Folder' : 'Rename Folder'}
+                </Text>
                 <Text style={styles.modalSubtitle}>Organize documents inside your secure vault</Text>
               </View>
             </View>
@@ -314,27 +394,27 @@ export function VaultScreen({ route, navigation }: Props) {
               style={styles.folderInput}
               placeholder="e.g. Legal Documents, Invoices, Tax"
               placeholderTextColor={COLORS.textMuted}
-              value={newFolderName}
-              onChangeText={setNewFolderName}
+              value={folderInputText}
+              onChangeText={setFolderInputText}
               autoFocus={true}
               autoCapitalize="words"
               returnKeyType="done"
-              onSubmitEditing={handleConfirmCreateFolder}
+              onSubmitEditing={handleConfirmFolderSubmit}
             />
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setFolderModalVisible(false)}
-                disabled={creatingFolder}
+                disabled={savingFolder}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
 
               <Button
-                label={creatingFolder ? 'Creating...' : 'Create Folder'}
-                onPress={handleConfirmCreateFolder}
-                disabled={creatingFolder || !newFolderName.trim()}
+                label={savingFolder ? 'Saving...' : folderModalMode === 'create' ? 'Create Folder' : 'Rename'}
+                onPress={handleConfirmFolderSubmit}
+                disabled={savingFolder || !folderInputText.trim()}
                 variant="primary"
                 style={styles.createButton}
               />

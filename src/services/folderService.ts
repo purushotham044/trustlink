@@ -85,7 +85,33 @@ export const folderService = {
   },
 
   /**
-   * Deletes a folder (and cascades its contents via PostgreSQL constraints).
+   * Deletes only the folder, moving all files inside it safely to the main vault (root).
+   */
+  async deleteFolderPreservingFiles(folderId: string): Promise<void> {
+    const { data: user } = await supabase.auth.getUser();
+    if (!user.user) throw new Error('Not authenticated');
+
+    // 1. Unlink documents from this folder (move to root)
+    const { error: moveError } = await supabase
+      .from('documents')
+      .update({ folder_id: null })
+      .eq('folder_id', folderId)
+      .eq('owner_id', user.user.id);
+
+    if (moveError) throw moveError;
+
+    // 2. Delete the empty folder
+    const { error: deleteError } = await supabase
+      .from('folders')
+      .delete()
+      .eq('id', folderId)
+      .eq('owner_id', user.user.id);
+
+    if (deleteError) throw deleteError;
+  },
+
+  /**
+   * Deletes a folder and all documents inside it.
    */
   async deleteFolder(folderId: string): Promise<void> {
     const { error } = await supabase
