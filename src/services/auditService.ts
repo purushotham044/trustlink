@@ -72,29 +72,8 @@ export const auditService = {
     }
 
     const { data, error } = await query;
-    if (error) {
-      console.warn('Error fetching audit logs:', error);
-      return [];
-    }
+    if (error) throw error;
 
     return (data || []) as ExtendedAuditLog[];
-  },
-
-  /**
-   * Clears audit logs for the authenticated user.
-   */
-  async clearAuditLogs(): Promise<void> {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) throw new Error('Not authenticated');
-
-    const { error } = await supabase
-      .from('audit_logs')
-      .delete()
-      .eq('user_id', user.user.id);
-
-    if (error) {
-      console.warn('Error clearing audit logs:', error);
-      throw error;
-    }
   }
 };

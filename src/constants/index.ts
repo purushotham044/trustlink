@@ -1,43 +1,43 @@
 // ============================================================
-// TrustLink — Application Constants
-// No secrets here — public configuration only
+// TrustLink — Application Constants & Design System Tokens
+// Professional Enterprise Dark Palette (Fintech & Cybersecurity)
 // ============================================================
 
 // ── Design System ────────────────────────────────────────────
 
 export const COLORS = {
-  // Primary backgrounds
+  // Primary backgrounds — Slate Midnight
   background: '#0A0E1A',
   surface: '#111827',
   surfaceElevated: '#1A2235',
-  surfaceBorder: '#1E293B',
+  surfaceBorder: '#222F43',
 
-  // Accent — cyan/teal for cybersecurity aesthetic
+  // Primary Accent — Cybersecurity Electric Cyan
   primary: '#00D4FF',
   primaryDim: '#0099BB',
   primaryMuted: 'rgba(0, 212, 255, 0.12)',
 
-  // Status colors
+  // Status colors — Clean Enterprise Tokens
   success: '#10B981',
-  successMuted: 'rgba(16, 185, 129, 0.12)',
+  successMuted: 'rgba(16, 185, 129, 0.14)',
   warning: '#F59E0B',
-  warningMuted: 'rgba(245, 158, 11, 0.12)',
+  warningMuted: 'rgba(245, 158, 11, 0.14)',
   danger: '#EF4444',
-  dangerMuted: 'rgba(239, 68, 68, 0.12)',
+  dangerMuted: 'rgba(239, 68, 68, 0.14)',
 
-  // Blockchain accent — purple
+  // Blockchain accent — Royal Ethereum Purple
   blockchain: '#8B5CF6',
-  blockchainMuted: 'rgba(139, 92, 246, 0.12)',
+  blockchainMuted: 'rgba(139, 92, 246, 0.14)',
 
-  // Text
-  textPrimary: '#F1F5F9',
+  // Text Hierarchy — High Contrast & Readability
+  textPrimary: '#F8FAFC',
   textSecondary: '#94A3B8',
-  textMuted: '#475569',
+  textMuted: '#64748B',
   textInverse: '#0A0E1A',
 
   // Borders
   border: '#1E293B',
-  borderLight: '#2D3748',
+  borderLight: '#334155',
 } as const;
 
 export const TYPOGRAPHY = {
@@ -143,5 +143,3 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   BLOCKCHAIN_ANCHORED: 'Hash anchored to blockchain',
   BLOCKCHAIN_ANCHOR_FAILED: 'Blockchain anchoring failed',
 };
-
-
