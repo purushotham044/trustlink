@@ -16,7 +16,7 @@ export default function App() {
     <ErrorBoundary>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
-          <StatusBar style="light" />
+          <StatusBar style="dark" />
           <RootNavigator />
         </SafeAreaProvider>
       </GestureHandlerRootView>

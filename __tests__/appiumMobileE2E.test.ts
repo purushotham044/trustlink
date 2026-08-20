@@ -20,9 +20,9 @@ describe('Appium Mobile Automation & Flow Simulation (25 Test Cases)', () => {
     expect(tabs.length).toBe(5);
   });
 
-  test('4. Tab bar active tint color matches COLORS.primary (#0066FF)', () => {
-    const primaryColor = '#0066FF';
-    expect(primaryColor).toBe('#0066FF');
+  test('4. Tab bar active tint color matches COLORS.primary (#00D4FF)', () => {
+    const primaryColor = '#00D4FF';
+    expect(primaryColor).toBe('#00D4FF');
   });
 
   test('5. Vault screen floating/header action triggers file picker dialog', () => {

@@ -1,43 +1,43 @@
 // ============================================================
-// TrustLink — Application Constants (Executive Dark Blue & White Theme)
+// TrustLink — Application Constants (Executive White & Dark Navy)
 // No secrets here — public configuration only
 // ============================================================
 
-// ── Design System ────────────────────────────────────────────
+// ── Executive Design System ──────────────────────────────────
 
 export const COLORS = {
-  // Primary backgrounds (Deep Executive Navy & Dark Blue)
-  background: '#0A1128',
-  surface: '#101F42',
-  surfaceElevated: '#1C2E58',
-  surfaceBorder: '#2A4374',
+  // Primary backgrounds (Crisp White & Off-White Dominated)
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceElevated: '#F1F5F9',
+  surfaceBorder: '#E2E8F0',
 
-  // Accent — Professional Royal Executive Blue
-  primary: '#0066FF',
-  primaryDim: '#0052CC',
-  primaryMuted: 'rgba(0, 102, 255, 0.15)',
+  // Accent — Deep Executive Navy & Royal Blue
+  primary: '#0F2744',
+  primaryDim: '#172554',
+  primaryMuted: 'rgba(15, 39, 68, 0.08)',
 
   // Status colors
-  success: '#10B981',
-  successMuted: 'rgba(16, 185, 129, 0.15)',
-  warning: '#F59E0B',
-  warningMuted: 'rgba(245, 158, 11, 0.15)',
-  danger: '#EF4444',
-  dangerMuted: 'rgba(239, 68, 68, 0.15)',
+  success: '#059669',
+  successMuted: 'rgba(5, 150, 105, 0.10)',
+  warning: '#D97706',
+  warningMuted: 'rgba(217, 119, 6, 0.10)',
+  danger: '#DC2626',
+  dangerMuted: 'rgba(220, 38, 38, 0.10)',
 
-  // Blockchain accent — Indigo
-  blockchain: '#6366F1',
-  blockchainMuted: 'rgba(99, 102, 241, 0.15)',
+  // Blockchain accent — Deep Indigo
+  blockchain: '#4F46E5',
+  blockchainMuted: 'rgba(79, 70, 229, 0.10)',
 
-  // Crisp High-Contrast Text (White & Silver)
-  textPrimary: '#FFFFFF',
-  textSecondary: '#CBD5E1',
-  textMuted: '#94A3B8',
+  // High-Contrast Professional Text
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#64748B',
   textInverse: '#FFFFFF',
 
-  // Borders (Clean Corporate Navy)
-  border: '#233862',
-  borderLight: '#344E80',
+  // Crisp Light Borders
+  border: '#E2E8F0',
+  borderLight: '#CBD5E1',
 } as const;
 
 export const TYPOGRAPHY = {

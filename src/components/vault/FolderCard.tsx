@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: SPACING.md,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.2)',
+    borderColor: COLORS.surfaceBorder,
   },
   info: {
     flex: 1,

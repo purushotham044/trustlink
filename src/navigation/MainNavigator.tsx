@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StyleSheet, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, SPACING } from '@/constants';
 
@@ -28,17 +28,17 @@ export function MainNavigator() {
           paddingBottom: Platform.OS === 'ios' ? SPACING.lg : SPACING.sm,
           paddingTop: SPACING.xs,
           height: Platform.OS === 'ios' ? 84 : 64,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.2,
-          shadowRadius: 4,
+          elevation: 6,
+          shadowColor: 'rgba(15, 23, 42, 0.08)',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 1,
+          shadowRadius: 6,
         },
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: TYPOGRAPHY.medium,
+          fontWeight: TYPOGRAPHY.semibold,
           marginTop: 2,
         },
       }}
