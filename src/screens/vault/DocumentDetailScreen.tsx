@@ -1,5 +1,6 @@
 // ============================================================
 // TrustLink — Professional Document Detail Screen (Responsive)
+// Clean Integrity, Blockchain Proofs & File Actions
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
@@ -11,8 +12,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
-  Modal,
-  TextInput,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,13 +25,11 @@ import { useTheme } from '@/context/ThemeContext';
 import { documentService } from '@/services/documentService';
 import { integrityService } from '@/services/integrityService';
 import { blockchainService } from '@/services/blockchainService';
-import { shareService } from '@/services/shareService';
 import { Button } from '@/components/common/Button';
-import { BlockchainProof, SharePermission } from '@/types';
+import { BlockchainProof } from '@/types';
 import { truncateTxHash, computeFileSha256 } from '@/lib/crypto';
 
 type Props = StackScreenProps<VaultStackParamList, 'DocumentDetail'>;
-type ExpiryOption = '1h' | '24h' | '7d' | 'never';
 
 export function DocumentDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -53,13 +50,6 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     computedHash: string;
     matches: boolean;
   } | null>(null);
-
-  // Sharing Modal State
-  const [shareModalVisible, setShareModalVisible] = useState(false);
-  const [shareTarget, setShareTarget] = useState('');
-  const [permission, setPermission] = useState<SharePermission>('VIEW');
-  const [expiry, setExpiry] = useState<ExpiryOption>('24h');
-  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     loadBlockchainProof();
@@ -94,117 +84,33 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleSystemShare = async () => {
-    try {
-      await shareService.shareViaSystem(document);
-    } catch (err: any) {
-      Alert.alert('Share Note', err.message || 'Could not open system share dialog');
-    }
-  };
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete Document',
-      `Are you sure you want to permanently delete "${document.name}"? This will remove the file and all associated proofs from your vault.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setDeleting(true);
-              await documentService.deleteDocument(document);
-              navigation.goBack();
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete document');
-              setDeleting(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
   const handleVerify = async () => {
     try {
       setVerifying(true);
-      const isVerified = await integrityService.verifyDocument(document);
+      const isMatch = await integrityService.verifyDocument(document);
       
-      const dualResult = await blockchainService.verifyDualIntegrity(
-        document.name,
-        document.current_hash || '',
-        document.current_hash,
-        proof
-      );
+      setDocument(prev => ({
+        ...prev,
+        integrity_status: isMatch ? 'VERIFIED' : 'FAILED',
+      }));
 
-      const updatedDoc = {
-        ...document,
-        integrity_status: (isVerified && dualResult.blockchainMatch !== false) ? 'VERIFIED' : 'FAILED',
-      } as const;
-
-      setDocument(updatedDoc as any);
-
-      if (isVerified && dualResult.blockchainMatch !== false) {
+      if (isMatch) {
         Alert.alert(
-          '✓ Integrity Verified',
-          `Cloud vault binary exactly matches the recorded cryptographic signature.\n\nSHA-256: ${document.current_hash}\nBlockchain Status: ${proof ? 'Confirmed on Ethereum Sepolia' : 'Vault Reference Intact'}`,
+          'Cryptographic Integrity Verified',
+          'The document bytes in vault cloud storage perfectly match the mathematical SHA-256 fingerprint recorded at registration. No tampering or alteration detected.',
           [{ text: 'OK' }]
         );
       } else {
         Alert.alert(
-          '⚠ Integrity Check Failed',
-          'The document binary in cloud storage does not match its registered cryptographic hash. The file may have been modified or corrupted.',
-          [{ text: 'OK' }]
+          'Tamper Warning',
+          'The SHA-256 hash of the stored file does NOT match the cryptographic ledger. The file may have been altered.',
+          [{ text: 'OK', style: 'destructive' }]
         );
       }
     } catch (err: any) {
-      Alert.alert('Verification Error', err.message || 'Could not verify document integrity.');
+      Alert.alert('Verification Failed', err.message || 'Could not verify document integrity');
     } finally {
       setVerifying(false);
-    }
-  };
-
-  const handleSearchForTamper = async () => {
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (res.canceled || !res.assets || !res.assets[0]) return;
-
-      const file = res.assets[0];
-      setIsTestingTamper(true);
-      setTamperResult(null);
-
-      const hash = await computeFileSha256(file.uri);
-      const expectedHash = (document.current_hash || '').toLowerCase();
-      const matches = hash.toLowerCase() === expectedHash;
-
-      setTamperResult({
-        fileName: file.name,
-        computedHash: hash,
-        matches,
-      });
-
-      if (matches) {
-        Alert.alert(
-          '✓ MATCH CONFIRMED',
-          `The selected file "${file.name}" exactly matches the registered SHA-256 fingerprint down to the exact byte!`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert(
-          '⚠ FINGERPRINT MISMATCH DETECTED',
-          `The selected file "${file.name}" has been modified or altered!\n\nSelected Hash: ${hash}\nVault Reference: ${document.current_hash}`,
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (err: any) {
-      Alert.alert('Tamper Search Error', err.message || 'Could not check file.');
-    } finally {
-      setIsTestingTamper(false);
     }
   };
 
@@ -214,53 +120,82 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
       const newProof = await blockchainService.anchorDocument(document.id);
       setProof(newProof);
       Alert.alert(
-        'Blockchain Proof Created',
-        `An immutable cryptographic proof for "${document.name}" has been permanently recorded on ${newProof.blockchain_network}.\n\nTx: ${newProof.transaction_hash ? truncateTxHash(newProof.transaction_hash) : 'Pending'}\nBlock: #${newProof.block_number || 'Mining'}`,
-        [{ text: 'View Proof', onPress: () => {} }]
+        'Anchored on Ethereum Sepolia',
+        `Document fingerprint successfully anchored to smart contract at block #${newProof.block_number || 'Confirmed'}.\n\nTx Hash: ${newProof.transaction_hash}`
       );
     } catch (err: any) {
-      Alert.alert(
-        'Anchoring Note',
-        err.message || 'Blockchain anchoring is currently processing or temporarily unavailable.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Blockchain Anchoring Error', err.message || 'Could not complete blockchain anchoring');
     } finally {
       setAnchoring(false);
     }
   };
 
-  const handleCreateShare = async () => {
-    if (!shareTarget.trim()) {
-      Alert.alert('Invalid Input', 'Please enter a recipient email or user ID.');
-      return;
-    }
-
+  const handleSearchForTamper = async () => {
     try {
-      setSharing(true);
-      let expiresAt: string | null = null;
-      const now = Date.now();
-      if (expiry === '1h') expiresAt = new Date(now + 3600 * 1000).toISOString();
-      if (expiry === '24h') expiresAt = new Date(now + 24 * 3600 * 1000).toISOString();
-      if (expiry === '7d') expiresAt = new Date(now + 7 * 24 * 3600 * 1000).toISOString();
+      setIsTestingTamper(true);
+      setTamperResult(null);
 
-      await shareService.shareDocument(
-        document.id,
-        shareTarget.trim(),
-        permission,
-        expiresAt
-      );
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
 
-      setShareModalVisible(false);
-      setShareTarget('');
-      Alert.alert(
-        'Share Created',
-        `Access granted for ${shareTarget} (${permission === 'DOWNLOAD' ? 'Download & View' : 'View Only'}).`
-      );
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        setIsTestingTamper(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const localHash = await computeFileSha256(asset.uri);
+      const matches = localHash.toLowerCase() === (document.current_hash || '').toLowerCase();
+
+      setTamperResult({
+        fileName: asset.name,
+        computedHash: localHash,
+        matches,
+      });
+
+      if (matches) {
+        Alert.alert(
+          'Cryptographic Match (Intact)',
+          `Selected file "${asset.name}" matches the vaulted SHA-256 fingerprint exactly.\n\nFile is 100% genuine and unaltered.`
+        );
+      } else {
+        Alert.alert(
+          'Mismatch / Tampered File Detected',
+          `Selected file "${asset.name}" has a different cryptographic fingerprint:\n\nVault: ${document.current_hash?.slice(0, 16)}...\nSelected: ${localHash.slice(0, 16)}...\n\nThis confirms the file has different content or has been modified.`,
+          [{ text: 'Acknowledge', style: 'destructive' }]
+        );
+      }
     } catch (err: any) {
-      Alert.alert('Sharing Failed', err.message || 'Could not create share permission.');
+      Alert.alert('Tamper Analysis Failed', err.message || 'Could not analyze local file');
     } finally {
-      setSharing(false);
+      setIsTestingTamper(false);
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Document',
+      `Are you sure you want to permanently delete "${document.name}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              await documentService.deleteDocument(document);
+              navigation.goBack();
+            } catch (err: any) {
+              Alert.alert('Delete Failed', err.message || 'Could not delete document');
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const openEtherscan = (txHash: string) => {
@@ -477,33 +412,8 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         
         <View style={{ height: SPACING.sm }} />
         
-        {/* Two-Button Sharing Row */}
-        <View style={styles.shareRow}>
-          <TouchableOpacity
-            style={[styles.shareActionBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary + '40' }]}
-            onPress={handleSystemShare}
-            disabled={downloading || deleting || verifying || anchoring}
-            activeOpacity={0.75}
-          >
-            <Feather name="share-2" size={16} color={colors.primary} />
-            <Text style={[styles.nativeShareText, { color: colors.primary }]}>Share via Apps</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.shareActionBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}
-            onPress={() => setShareModalVisible(true)}
-            disabled={downloading || deleting || verifying || anchoring}
-            activeOpacity={0.75}
-          >
-            <Feather name="user-check" size={16} color={colors.textPrimary} />
-            <Text style={[styles.vaultShareText, { color: colors.textPrimary }]}>Grant In-App Access</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: SPACING.sm }} />
-        
         <Button 
-          label={downloading ? 'Downloading File...' : 'Download / View File'} 
+          label={downloading ? 'Downloading File...' : 'Download / Export File'} 
           onPress={handleDownload} 
           variant="secondary"
           disabled={downloading || deleting || verifying || anchoring}
@@ -518,87 +428,6 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
           disabled={downloading || deleting || verifying || anchoring}
         />
       </View>
-
-      {/* Secure Share Modal */}
-      <Modal
-        visible={shareModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShareModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Grant In-App Access</Text>
-              <TouchableOpacity onPress={() => setShareModalVisible(false)}>
-                <Feather name="x" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
-              Create a permission-controlled, time-bounded share record for another user.
-            </Text>
-
-            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Recipient Email or User ID</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.textPrimary }]}
-              placeholder="e.g. colleague@trustlink.app"
-              placeholderTextColor={colors.textMuted}
-              value={shareTarget}
-              onChangeText={setShareTarget}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-            />
-
-            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Permission Level</Text>
-            <View style={styles.pickerRow}>
-              <TouchableOpacity
-                style={[styles.pickerButton, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }, permission === 'VIEW' && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }]}
-                onPress={() => setPermission('VIEW')}
-              >
-                <Feather name="eye" size={14} color={permission === 'VIEW' ? colors.primary : colors.textMuted} />
-                <Text style={[styles.pickerText, { color: colors.textMuted }, permission === 'VIEW' && { color: colors.primary }]}>
-                  VIEW ONLY
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.pickerButton, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }, permission === 'DOWNLOAD' && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }]}
-                onPress={() => setPermission('DOWNLOAD')}
-              >
-                <Feather name="download" size={14} color={permission === 'DOWNLOAD' ? colors.primary : colors.textMuted} />
-                <Text style={[styles.pickerText, { color: colors.textMuted }, permission === 'DOWNLOAD' && { color: colors.primary }]}>
-                  DOWNLOAD & VIEW
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Expiration Duration</Text>
-            <View style={styles.pickerRow}>
-              {(['1h', '24h', '7d', 'never'] as ExpiryOption[]).map((opt) => (
-                <TouchableOpacity
-                  key={opt}
-                  style={[styles.expiryBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }, expiry === opt && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }]}
-                  onPress={() => setExpiry(opt)}
-                >
-                  <Text style={[styles.expiryText, { color: colors.textMuted }, expiry === opt && { color: colors.primary }]}>
-                    {opt.toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={{ height: SPACING.lg }} />
-
-            <Button
-              label={sharing ? 'Granting Access...' : 'Confirm & Share'}
-              onPress={handleCreateShare}
-              disabled={sharing}
-            />
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
@@ -618,14 +447,14 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 64,
     height: 64,
-    borderRadius: RADIUS.xl,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
   },
   docName: {
-    fontSize: TYPOGRAPHY.lg,
+    fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
     textAlign: 'center',
     marginBottom: SPACING.xs,
@@ -638,13 +467,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: SPACING.md,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
     borderWidth: 1,
   },
   statusText: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
     letterSpacing: 0.5,
   },
@@ -652,82 +481,45 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    letterSpacing: 1,
     marginBottom: SPACING.xs,
-    marginLeft: 4,
+    marginLeft: 2,
   },
   card: {
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
     borderWidth: 1,
+    padding: SPACING.md,
   },
   centerCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING.xl,
     gap: SPACING.sm,
   },
   loadingText: {
     fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.medium,
   },
   hashText: {
     fontSize: 11,
-    fontWeight: TYPOGRAPHY.medium,
-    lineHeight: 16,
-    padding: 10,
-    borderRadius: RADIUS.md,
-    overflow: 'hidden',
+    fontFamily: 'monospace',
+    padding: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    marginBottom: SPACING.xs,
   },
   cardNote: {
     fontSize: 11,
-    marginTop: SPACING.xs,
     lineHeight: 16,
-  },
-  tamperSearchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: RADIUS.md,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginTop: 4,
-  },
-  tamperSearchBtnText: {
-    fontSize: 12,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-  tamperResultBox: {
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    gap: 4,
-  },
-  tamperResultTitle: {
-    fontSize: 12,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-  tamperResultFile: {
-    fontSize: 11,
-    fontWeight: TYPOGRAPHY.medium,
-  },
-  tamperResultHash: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.medium,
   },
   proofHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingBottom: SPACING.sm,
-    borderBottomWidth: 1,
     marginBottom: SPACING.sm,
+    borderBottomWidth: 1,
   },
   proofNetwork: {
     flexDirection: 'row',
@@ -755,15 +547,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: SPACING.xs + 2,
     borderBottomWidth: 1,
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: TYPOGRAPHY.xs,
   },
   infoValue: {
-    fontSize: 12,
-    fontWeight: TYPOGRAPHY.medium,
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
   },
   linkButton: {
     flexDirection: 'row',
@@ -771,106 +563,48 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   linkText: {
-    fontSize: 12,
-    fontWeight: TYPOGRAPHY.bold,
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
+    textDecorationLine: 'underline',
   },
   unanchoredText: {
-    fontSize: 12,
+    fontSize: TYPOGRAPHY.xs,
     lineHeight: 18,
   },
-  actions: {
-    marginTop: SPACING.sm,
-  },
-  shareRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  shareActionBtn: {
-    flex: 1,
+  tamperSearchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
+    paddingVertical: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1,
   },
-  nativeShareText: {
-    fontWeight: TYPOGRAPHY.bold,
-    fontSize: TYPOGRAPHY.sm,
+  tamperSearchBtnText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
   },
-  vaultShareText: {
-    fontWeight: TYPOGRAPHY.bold,
-    fontSize: TYPOGRAPHY.sm,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: RADIUS.xxl,
-    borderTopRightRadius: RADIUS.xxl,
-    padding: SPACING.lg,
-    borderWidth: 1,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
-  },
-  modalTitle: {
-    fontSize: TYPOGRAPHY.lg,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    marginBottom: SPACING.md,
-    lineHeight: 16,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: TYPOGRAPHY.bold,
-    textTransform: 'uppercase',
-    marginBottom: 6,
+  tamperResultBox: {
     marginTop: SPACING.sm,
-  },
-  input: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: TYPOGRAPHY.sm,
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-  },
-  pickerButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
+    padding: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1,
   },
-  pickerText: {
+  tamperResultTitle: {
     fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
+    marginBottom: 2,
   },
-  expiryBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-  },
-  expiryText: {
+  tamperResultFile: {
     fontSize: 11,
-    fontWeight: TYPOGRAPHY.bold,
+    fontWeight: TYPOGRAPHY.medium,
+  },
+  tamperResultHash: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    marginTop: 2,
+  },
+  actions: {
+    marginTop: SPACING.sm,
   },
 });

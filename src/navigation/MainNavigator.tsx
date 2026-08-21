@@ -1,5 +1,6 @@
 // ============================================================
 // TrustLink — Main Navigator (Bottom Tab Navigation)
+// Streamlined 4-Tab Navigation (Dashboard, Vault, Audit Trail, Security)
 // ============================================================
 
 import React from 'react';
@@ -12,7 +13,6 @@ import { useTheme } from '@/context/ThemeContext';
 
 import { DashboardScreen } from '@/screens/dashboard/DashboardScreen';
 import { VaultNavigator } from './VaultNavigator';
-import { ShareScreen } from '@/screens/share/ShareScreen';
 import { ActivityScreen } from '@/screens/activity/ActivityScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 
@@ -64,16 +64,6 @@ export function MainNavigator() {
           tabBarLabel: 'Vault',
           tabBarIcon: ({ color, size }) => (
             <Feather name="folder" size={20} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Share"
-        component={ShareScreen}
-        options={{
-          tabBarLabel: 'Sharing',
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="share-2" size={20} color={color} />
           ),
         }}
       />

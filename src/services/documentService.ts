@@ -8,7 +8,6 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { ethers } from 'ethers';
 import { integrityService } from './integrityService';
-import { DOCUMENT_REGISTRY_CONTRACT_ADDRESS } from './blockchainService';
 
 export const documentService = {
   /**
@@ -38,7 +37,7 @@ export const documentService = {
 
   /**
    * Uploads a file to Supabase Storage and creates a document record.
-   * Computes SHA-256 natively before uploading with live step progress callbacks.
+   * Initial integrity status is set to PENDING until the user explicitly verifies.
    * Fully polymorphic: accepts either an asset object or discrete string arguments.
    */
   async uploadDocument(
@@ -159,7 +158,7 @@ export const documentService = {
         mime_type: mimeType || 'application/octet-stream',
         size: fileSize,
         current_hash: sha256Hash,
-        integrity_status: 'VERIFIED', // Directly verified with computed SHA-256 fingerprint
+        integrity_status: 'PENDING', // Initial state upon upload is PENDING
       })
       .select()
       .single();
@@ -172,8 +171,8 @@ export const documentService = {
 
     const createdDoc = data as Document;
 
-    // Step 4: Verification & Blockchain Sync
-    reportProgress(4, 'Securing cryptographic ledger & blockchain status...');
+    // Step 4: Ledger & Audit Sync
+    reportProgress(4, 'Vaulted securely. Ready for cryptographic verification.');
     try {
       await integrityService.createIntegrityRecord(
         createdDoc.id,
@@ -181,38 +180,6 @@ export const documentService = {
         sha256Hash,
         1
       );
-
-      // Ensure any older documents with identical hash are also marked VERIFIED
-      await supabase
-        .from('documents')
-        .update({ integrity_status: 'VERIFIED' })
-        .eq('current_hash', sha256Hash)
-        .eq('owner_id', user.user.id);
-
-      // Check if this hash already has a confirmed Sepolia blockchain proof
-      const { data: existingBlockchainProof } = await supabase
-        .from('blockchain_proofs')
-        .select('*')
-        .eq('document_hash', sha256Hash)
-        .eq('status', 'CONFIRMED')
-        .order('anchored_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingBlockchainProof) {
-        await supabase
-          .from('blockchain_proofs')
-          .upsert({
-            document_id: createdDoc.id,
-            document_hash: sha256Hash,
-            blockchain_network: existingBlockchainProof.blockchain_network || 'Ethereum Sepolia',
-            contract_address: existingBlockchainProof.contract_address || DOCUMENT_REGISTRY_CONTRACT_ADDRESS,
-            transaction_hash: existingBlockchainProof.transaction_hash,
-            block_number: existingBlockchainProof.block_number,
-            status: 'CONFIRMED',
-            anchored_at: existingBlockchainProof.anchored_at || new Date().toISOString(),
-          }, { onConflict: 'document_id' });
-      }
 
       await supabase.from('audit_logs').insert({
         user_id: user.user.id,

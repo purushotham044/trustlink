@@ -32,7 +32,6 @@ interface DashboardStats {
   totalDocs: number;
   verifiedDocs: number;
   anchoredDocs: number;
-  sharedDocs: number;
 }
 
 export function DashboardScreen({ navigation }: any) {
@@ -44,7 +43,6 @@ export function DashboardScreen({ navigation }: any) {
     totalDocs: 0,
     verifiedDocs: 0,
     anchoredDocs: 0,
-    sharedDocs: 0,
   });
   const [recentDocs, setRecentDocs] = useState<VaultDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,16 +91,7 @@ export function DashboardScreen({ navigation }: any) {
 
       if (ancErr) throw ancErr;
 
-      // 4. Fetch active shares count
-      const { count: shared, error: shareErr } = await supabase
-        .from('document_shares')
-        .select('*', { count: 'exact', head: true })
-        .eq('owner_id', user.id)
-        .is('revoked_at', null);
-
-      if (shareErr) throw shareErr;
-
-      // 5. Fetch 3 most recent documents
+      // 4. Fetch 3 most recent documents
       const { data: recent, error: recentErr } = await supabase
         .from('documents')
         .select('*')
@@ -116,7 +105,6 @@ export function DashboardScreen({ navigation }: any) {
         totalDocs: total ?? 0,
         verifiedDocs: verified ?? 0,
         anchoredDocs: anchored ?? 0,
-        sharedDocs: shared ?? 0,
       });
 
       setRecentDocs((recent as VaultDocument[]) ?? []);
@@ -180,7 +168,7 @@ export function DashboardScreen({ navigation }: any) {
       setUploadProgress(prev => ({
         ...prev,
         step: 4,
-        statusText: 'Document vaulted & secured successfully!',
+        statusText: 'Document vaulted successfully! Ready for integrity check.',
         isComplete: true,
       }));
 
@@ -303,7 +291,7 @@ export function DashboardScreen({ navigation }: any) {
           <Text style={[styles.statValue, { color: colors.success }]}>
             {loading ? '-' : stats.verifiedDocs}
           </Text>
-          <Text style={[styles.statFootnote, { color: colors.textMuted }]}>100% Intact</Text>
+          <Text style={[styles.statFootnote, { color: colors.textMuted }]}>Intact Fingerprints</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -318,22 +306,7 @@ export function DashboardScreen({ navigation }: any) {
           <Text style={[styles.statValue, { color: colors.blockchain }]}>
             {loading ? '-' : stats.anchoredDocs}
           </Text>
-          <Text style={[styles.statFootnote, { color: colors.textMuted }]}>Smart Contract</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => navigation.navigate('Share')}
-          activeOpacity={0.75}
-        >
-          <View style={styles.statHeader}>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Shares</Text>
-            <Feather name="share-2" size={14} color={colors.warning} />
-          </View>
-          <Text style={[styles.statValue, { color: colors.warning }]}>
-            {loading ? '-' : stats.sharedDocs}
-          </Text>
-          <Text style={[styles.statFootnote, { color: colors.textMuted }]}>Active Permissions</Text>
+          <Text style={[styles.statFootnote, { color: colors.textMuted }]}>On-Chain Proofs</Text>
         </TouchableOpacity>
       </View>
 
@@ -350,7 +323,7 @@ export function DashboardScreen({ navigation }: any) {
         <View style={styles.uploadTextWrap}>
           <Text style={[styles.uploadTitle, { color: colors.textPrimary }]}>Quick Vault Upload</Text>
           <Text style={[styles.uploadSubtitle, { color: colors.textMuted }]}>
-            Auto-generate SHA-256 fingerprint & secure in cloud
+            Store securely & compute SHA-256 fingerprint
           </Text>
         </View>
         <Feather name="plus" size={18} color={colors.primary} />
@@ -379,7 +352,7 @@ export function DashboardScreen({ navigation }: any) {
           <Feather name="file-text" size={32} color={colors.textMuted} />
           <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No documents vaulted yet</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-            Tap here to upload your first file and generate an unforgeable cryptographic proof.
+            Tap here to upload your first file and generate a cryptographic fingerprint.
           </Text>
         </TouchableOpacity>
       ) : (
@@ -502,7 +475,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: '47%',
+    minWidth: '30%',
     borderRadius: RADIUS.lg,
     borderWidth: 1,
     padding: SPACING.md,
@@ -523,7 +496,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   statFootnote: {
-    fontSize: 10,
+    fontSize: 9,
   },
   uploadHero: {
     flexDirection: 'row',
