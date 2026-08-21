@@ -1,5 +1,5 @@
 // ============================================================
-// TrustLink — Button Component
+// TrustLink — Button Component (Fully Theme Responsive)
 // ============================================================
 
 import React from 'react';
@@ -11,7 +11,8 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -39,7 +40,59 @@ export function Button({
   icon,
   style,
 }: ButtonProps) {
+  const { colors } = useTheme();
   const isDisabled = disabled || loading;
+
+  const getVariantStyles = (): { button: ViewStyle; text: TextStyle; loaderColor: string } => {
+    switch (variant) {
+      case 'primary':
+        return {
+          button: {
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
+          },
+          text: {
+            color: '#FFFFFF',
+          },
+          loaderColor: '#FFFFFF',
+        };
+      case 'secondary':
+        return {
+          button: {
+            backgroundColor: colors.surfaceHighlight,
+            borderColor: colors.primary + '60',
+          },
+          text: {
+            color: colors.primary,
+          },
+          loaderColor: colors.primary,
+        };
+      case 'ghost':
+        return {
+          button: {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+          text: {
+            color: colors.textPrimary,
+          },
+          loaderColor: colors.textPrimary,
+        };
+      case 'danger':
+        return {
+          button: {
+            backgroundColor: colors.dangerMuted,
+            borderColor: colors.danger + '60',
+          },
+          text: {
+            color: colors.danger,
+          },
+          loaderColor: colors.danger,
+        };
+    }
+  };
+
+  const v = getVariantStyles();
 
   return (
     <TouchableOpacity
@@ -48,7 +101,7 @@ export function Button({
       activeOpacity={0.75}
       style={[
         styles.base,
-        styles[variant],
+        v.button,
         styles[`size_${size}`],
         fullWidth && styles.fullWidth,
         isDisabled && styles.disabled,
@@ -56,14 +109,11 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variant === 'primary' ? COLORS.textInverse : COLORS.primary}
-        />
+        <ActivityIndicator size="small" color={v.loaderColor} />
       ) : (
         <>
           {icon}
-          <Text style={[styles.label, styles[`label_${variant}`], styles[`labelSize_${size}`]]}>
+          <Text style={[styles.label, v.text, styles[`labelSize_${size}`]]}>
             {label}
           </Text>
         </>
@@ -80,25 +130,6 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: 'transparent',
-  } as ViewStyle,
-
-  // Variants
-  primary: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  } as ViewStyle,
-  secondary: {
-    backgroundColor: COLORS.primaryMuted,
-    borderColor: COLORS.primary,
-  } as ViewStyle,
-  ghost: {
-    backgroundColor: 'transparent',
-    borderColor: COLORS.border,
-  } as ViewStyle,
-  danger: {
-    backgroundColor: COLORS.dangerMuted,
-    borderColor: COLORS.danger,
   } as ViewStyle,
 
   // Sizes
@@ -115,12 +146,6 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.semibold,
     letterSpacing: 0.3,
   } as TextStyle,
-
-  // Label variants
-  label_primary: { color: COLORS.textInverse } as TextStyle,
-  label_secondary: { color: COLORS.primary } as TextStyle,
-  label_ghost: { color: COLORS.textSecondary } as TextStyle,
-  label_danger: { color: COLORS.danger } as TextStyle,
 
   // Label sizes
   labelSize_sm: { fontSize: TYPOGRAPHY.sm } as TextStyle,
