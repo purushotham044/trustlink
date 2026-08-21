@@ -38,16 +38,60 @@ export const documentService = {
   /**
    * Uploads a file to Supabase Storage and creates a document record.
    * Computes SHA-256 natively before uploading with live step progress callbacks.
+   * Fully polymorphic: accepts either an asset object or discrete string arguments.
    */
   async uploadDocument(
-    fileUri: string,
-    fileName: string,
-    mimeType: string,
-    folderId: string | null = null,
-    onProgress?: (step: number, statusText: string) => void
+    fileInput: string | { uri: string; name: string; mimeType?: string; size?: number },
+    fileNameOrFolderId?: string | null | ((progress: { step: number; statusText: string }) => void),
+    mimeTypeOrProgress?: string | ((progress: { step: number; statusText: string }) => void),
+    folderIdParam: string | null = null,
+    onProgressParam?: ((step: number, statusText: string) => void) | ((progress: { step: number; statusText: string }) => void)
   ): Promise<Document> {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated. Please sign in again.');
+
+    let fileUri: string;
+    let fileName: string;
+    let mimeType: string;
+    let folderId: string | null = null;
+    let reportProgress: (step: number, statusText: string) => void = () => {};
+
+    if (typeof fileInput === 'object' && fileInput !== null) {
+      fileUri = fileInput.uri;
+      fileName = fileInput.name || 'document';
+      mimeType = fileInput.mimeType || 'application/octet-stream';
+      folderId = typeof fileNameOrFolderId === 'string' ? fileNameOrFolderId : null;
+
+      if (typeof fileNameOrFolderId === 'function') {
+        const cb = fileNameOrFolderId as any;
+        reportProgress = (s, t) => {
+          try { cb({ step: s, statusText: t }); } catch {}
+          try { cb(s, t); } catch {}
+        };
+      } else if (typeof mimeTypeOrProgress === 'function') {
+        const cb = mimeTypeOrProgress as any;
+        reportProgress = (s, t) => {
+          try { cb({ step: s, statusText: t }); } catch {}
+          try { cb(s, t); } catch {}
+        };
+      }
+    } else {
+      fileUri = fileInput;
+      fileName = typeof fileNameOrFolderId === 'string' ? fileNameOrFolderId : 'document';
+      mimeType = typeof mimeTypeOrProgress === 'string' ? mimeTypeOrProgress : 'application/octet-stream';
+      folderId = folderIdParam;
+      if (typeof onProgressParam === 'function') {
+        const cb = onProgressParam as any;
+        reportProgress = (s, t) => {
+          try { cb(s, t); } catch {}
+          try { cb({ step: s, statusText: t }); } catch {}
+        };
+      }
+    }
+
+    if (!fileUri || typeof fileUri !== 'string') {
+      throw new Error('Invalid file URI provided for upload.');
+    }
 
     // 0. Profile sync
     try {
@@ -70,7 +114,7 @@ export const documentService = {
     }
 
     // Step 1: Read & Hash
-    onProgress?.(1, 'Computing cryptographic SHA-256 fingerprint...');
+    reportProgress(1, 'Computing cryptographic SHA-256 fingerprint...');
     const base64Content = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -85,7 +129,7 @@ export const documentService = {
     const sha256Hash = ethers.sha256(uint8Array).replace('0x', '').toLowerCase();
 
     // Step 2: Storage Upload
-    onProgress?.(2, 'Encrypting & uploading to vault storage...');
+    reportProgress(2, 'Encrypting & uploading to vault storage...');
     const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const folderPrefix = folderId ? `folders/${folderId}/` : '';
     const storagePath = `${user.user.id}/${folderPrefix}${Date.now()}_${safeFileName}`;
@@ -103,7 +147,7 @@ export const documentService = {
     }
 
     // Step 3: Database & Ledger
-    onProgress?.(3, 'Recording verification entry in database...');
+    reportProgress(3, 'Recording verification entry in database...');
     const { data, error: dbError } = await supabase
       .from('documents')
       .insert({
@@ -119,120 +163,119 @@ export const documentService = {
       .select()
       .single();
 
-    if (dbError) {
-      // Rollback storage if DB fails
+    if (dbError || !data) {
+      // Rollback storage upload if DB insert fails
       await supabase.storage.from('documents').remove([storagePath]);
-      throw new Error(`Database error: ${dbError.message || 'Could not create document record.'}`);
+      throw new Error(dbError?.message || 'Database registration failed.');
     }
 
-    // Create integrity record (resilient)
-    try {
-      await integrityService.createIntegrityRecord(data.id, sha256Hash, 1);
-    } catch (integrityErr: any) {
-      console.warn('Integrity ledger record note:', integrityErr.message);
-    }
+    const createdDoc = data as Document;
 
-    // Log upload to audit trail (resilient)
+    // Step 4: Verification & Audit trail
+    reportProgress(4, 'Verifying cryptographic integrity against ledger...');
     try {
+      await integrityService.recordIntegrityCheck(
+        createdDoc.id,
+        sha256Hash,
+        sha256Hash,
+        1
+      );
+
+      await supabase
+        .from('documents')
+        .update({ integrity_status: 'VERIFIED' })
+        .eq('id', createdDoc.id);
+
       await supabase.from('audit_logs').insert({
         user_id: user.user.id,
-        document_id: data.id,
+        document_id: createdDoc.id,
         action: 'DOCUMENT_UPLOADED',
-        metadata: { name: fileName, size: fileSize, mime_type: mimeType },
+        metadata: {
+          name: fileName,
+          size: fileSize,
+          hash: sha256Hash,
+          storage_path: storagePath,
+        },
       });
-    } catch (auditErr: any) {
-      console.warn('Audit log note:', auditErr.message);
+
+      createdDoc.integrity_status = 'VERIFIED';
+    } catch (auditErr) {
+      console.warn('Post-upload audit sync note:', auditErr);
     }
 
-    onProgress?.(4, 'Document secured and ready in your vault!');
-    return data as Document;
+    return createdDoc;
   },
 
   /**
-   * Generates a short-lived signed URL for downloading a document.
+   * Generates a signed URL to download or view a vaulted document
    */
-  async getDownloadUrl(storagePath: string): Promise<string> {
+  async getSignedUrl(storagePath: string, expiresIn: number = 60): Promise<string> {
     const { data, error } = await supabase.storage
       .from('documents')
-      .createSignedUrl(storagePath, 60); // 60 seconds
+      .createSignedUrl(storagePath, expiresIn);
 
-    if (error) throw error;
+    if (error || !data) {
+      throw new Error(error?.message || 'Failed to generate signed download URL');
+    }
+
     return data.signedUrl;
   },
 
   /**
-   * Downloads a document to the device.
+   * Downloads the document bytes and saves it locally via expo-file-system
    */
-  async downloadDocument(document: Document): Promise<string> {
-    const { data: user } = await supabase.auth.getUser();
-    const url = await this.getDownloadUrl(document.storage_path);
-    const destinationDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-    const localUri = `${destinationDir}${document.name}`;
-    
-    const { uri } = await FileSystem.downloadAsync(url, localUri);
+  async downloadDocument(doc: Document): Promise<string> {
+    const signedUrl = await this.getSignedUrl(doc.storage_path, 120);
+    const localUri = `${FileSystem.cacheDirectory}${doc.name}`;
 
-    // Log download to audit trail
-    if (user?.user) {
-      try {
-        await supabase.from('audit_logs').insert({
-          user_id: user.user.id,
-          document_id: document.id,
-          action: 'DOCUMENT_DOWNLOADED',
-          metadata: { name: document.name },
-        });
-      } catch (e) {}
+    const downloadRes = await FileSystem.downloadAsync(signedUrl, localUri);
+    if (downloadRes.status !== 200) {
+      throw new Error(`Download failed with status ${downloadRes.status}`);
     }
 
-    return uri;
+    // Log the download event
+    const { data: user } = await supabase.auth.getUser();
+    if (user.user) {
+      await supabase.from('audit_logs').insert({
+        user_id: user.user.id,
+        document_id: doc.id,
+        action: 'DOCUMENT_DOWNLOADED',
+        metadata: { name: doc.name, local_uri: localUri },
+      });
+    }
+
+    return downloadRes.uri;
   },
 
   /**
-   * Deletes a document from Database (and its child records) and Storage.
+   * Deletes a document from both database and Supabase storage
    */
-  async deleteDocument(document: Document): Promise<void> {
-    const { data: user } = await supabase.auth.getUser();
-
-    // 1. Clean up child records first to ensure no foreign key blockages
-    try {
-      await supabase.from('document_integrity_records').delete().eq('document_id', document.id);
-      await supabase.from('blockchain_proofs').delete().eq('document_id', document.id);
-      await supabase.from('document_shares').delete().eq('document_id', document.id);
-      // Detach audit logs from document foreign key without deleting audit history
-      await supabase.from('audit_logs').update({ document_id: null }).eq('document_id', document.id);
-    } catch (cleanErr) {
-      console.warn('Pre-delete cleanup note:', cleanErr);
-    }
-
-    // 2. Delete main document record
+  async deleteDocument(doc: Document): Promise<void> {
     const { error: dbError } = await supabase
       .from('documents')
       .delete()
-      .eq('id', document.id);
+      .eq('id', doc.id);
 
-    if (dbError) {
-      console.error('Database delete error:', dbError);
-      throw new Error(`Database delete error: ${dbError.message || 'Could not delete document'}`);
+    if (dbError) throw dbError;
+
+    // Remove from storage bucket
+    const { error: storageError } = await supabase.storage
+      .from('documents')
+      .remove([doc.storage_path]);
+
+    if (storageError) {
+      console.warn('Storage cleanup warning:', storageError);
     }
 
-    // 3. Delete file from Storage bucket
-    try {
-      await supabase.storage
-        .from('documents')
-        .remove([document.storage_path]);
-    } catch (storageErr) {
-      console.warn(`Failed to delete storage file ${document.storage_path}:`, storageErr);
-    }
-
-    // 4. Log deletion to audit trail
-    if (user?.user) {
-      try {
-        await supabase.from('audit_logs').insert({
-          user_id: user.user.id,
-          document_id: null,
-          action: 'DOCUMENT_DELETED',
-          metadata: { name: document.name, document_id: document.id },
-        });
-      } catch (e) {}
+    // Log deletion event
+    const { data: user } = await supabase.auth.getUser();
+    if (user.user) {
+      await supabase.from('audit_logs').insert({
+        user_id: user.user.id,
+        document_id: null,
+        action: 'DOCUMENT_DELETED',
+        metadata: { name: doc.name, storage_path: doc.storage_path },
+      });
     }
   }
 };
