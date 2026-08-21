@@ -10,6 +10,7 @@ export const COLORS = {
   background: '#F8FAFC',
   surface: '#FFFFFF',
   surfaceElevated: '#F1F5F9',
+  surfaceHighlight: '#F1F5F9',
   surfaceBorder: '#E2E8F0',
 
   // Accent — Deep Executive Navy & Royal Blue
@@ -56,6 +57,32 @@ export const TYPOGRAPHY = {
   medium: '500' as const,
   semibold: '600' as const,
   bold: '700' as const,
+
+  // Nested fontSize compatibility
+  fontSize: {
+    xs: 11,
+    sm: 13,
+    base: 15,
+    md: 17,
+    lg: 20,
+    xl: 24,
+    xxl: 30,
+    xxxl: 36,
+  },
+
+  // Nested fontFamily / fontWeight compatibility
+  fontFamily: {
+    regular: undefined,
+    medium: undefined,
+    semibold: undefined,
+    bold: undefined,
+  },
+  fontWeight: {
+    regular: '400' as const,
+    medium: '500' as const,
+    semibold: '600' as const,
+    bold: '700' as const,
+  },
 } as const;
 
 export const SPACING = {
@@ -74,78 +101,158 @@ export const RADIUS = {
   md: 10,
   lg: 14,
   xl: 20,
+  xxl: 24,
   full: 9999,
 } as const;
 
 // ── App Configuration ────────────────────────────────────────
 
-export const APP_NAME = 'TrustLink';
-export const APP_SCHEME = 'trustlink';
+export const APP_CONFIG = {
+  MAX_FILE_SIZE_BYTES: 50 * 1024 * 1024, // 50 MB
+  ALLOWED_MIME_TYPES: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'text/plain',
+  ],
+  SIGNED_URL_EXPIRY_SECONDS: 60, // 60-second time-limited download links
+  AUTO_VERIFY_ON_DETAIL: true,
+} as const;
 
-// ── Document Configuration ───────────────────────────────────
+export const ALLOWED_MIME_TYPES = APP_CONFIG.ALLOWED_MIME_TYPES;
+export const MAX_FILE_SIZE_BYTES = APP_CONFIG.MAX_FILE_SIZE_BYTES;
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-export const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'text/plain',
-];
+// ── Smart Contract & Blockchain Configuration ────────────────
 
-export const FILE_ICONS: Record<string, string> = {
-  'application/pdf': 'file-pdf-box',
-  'application/msword': 'file-word-box',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'file-word-box',
-  'application/vnd.ms-excel': 'file-excel-box',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'file-excel-box',
-  'image/jpeg': 'file-image',
-  'image/png': 'file-image',
-  'image/webp': 'file-image',
-  'text/plain': 'file-document-outline',
-};
+export const BLOCKCHAIN_CONFIG = {
+  NETWORK_NAME: 'Ethereum Sepolia',
+  CHAIN_ID: 11155111,
+  CONTRACT_ADDRESS: '0x1b9A1FBD6FC714B1aC443d00a555529567bd8D0E',
+  RPC_URL: 'https://ethereum-sepolia.publicnode.com',
+  EXPLORER_BASE_URL: 'https://sepolia.etherscan.io/tx/',
+  CONTRACT_EXPLORER_URL: 'https://sepolia.etherscan.io/address/0x1b9A1FBD6FC714B1aC443d00a555529567bd8D0E',
+} as const;
 
-// ── Blockchain Configuration ─────────────────────────────────
+export const BLOCKCHAIN_EXPLORER_BASE = BLOCKCHAIN_CONFIG.EXPLORER_BASE_URL;
+export const CONTRACT_EXPLORER_BASE = BLOCKCHAIN_CONFIG.CONTRACT_EXPLORER_URL;
+export const BLOCKCHAIN_NETWORK = BLOCKCHAIN_CONFIG.NETWORK_NAME;
+export const CONTRACT_ADDRESS = BLOCKCHAIN_CONFIG.CONTRACT_ADDRESS;
 
-export const BLOCKCHAIN_NETWORK = 'Ethereum Sepolia';
-export const BLOCKCHAIN_EXPLORER_BASE = 'https://sepolia.etherscan.io/tx/';
+// ── Audit Trail Action Labels & Icons ────────────────────────
 
-// ── Storage ──────────────────────────────────────────────────
+export const AUDIT_ACTIONS = {
+  DOCUMENT_UPLOADED: {
+    label: 'Document Uploaded',
+    icon: 'upload',
+    color: COLORS.primary,
+  },
+  HASH_CREATED: {
+    label: 'SHA-256 Fingerprint Generated',
+    icon: 'shield',
+    color: COLORS.primary,
+  },
+  DOCUMENT_VERIFIED: {
+    label: 'Integrity Verified',
+    icon: 'shield-check',
+    color: COLORS.success,
+  },
+  DOCUMENT_DOWNLOADED: {
+    label: 'Document Downloaded',
+    icon: 'download',
+    color: COLORS.textSecondary,
+  },
+  DOCUMENT_DELETED: {
+    label: 'Document Deleted',
+    icon: 'trash-2',
+    color: COLORS.danger,
+  },
+  DOCUMENT_SHARED: {
+    label: 'Document Shared',
+    icon: 'share-2',
+    color: COLORS.warning,
+  },
+  SHARE_REVOKED: {
+    label: 'Share Revoked',
+    icon: 'slash',
+    color: COLORS.danger,
+  },
+  BLOCKCHAIN_ANCHORED: {
+    label: 'Anchored to Blockchain',
+    icon: 'link',
+    color: COLORS.blockchain,
+  },
+  BLOCKCHAIN_ANCHOR_FAILED: {
+    label: 'Blockchain Anchoring Failed',
+    icon: 'alert-triangle',
+    color: COLORS.danger,
+  },
+  USER_LOGIN: {
+    label: 'User Signed In',
+    icon: 'log-in',
+    color: COLORS.primary,
+  },
+  USER_LOGOUT: {
+    label: 'User Signed Out',
+    icon: 'log-out',
+    color: COLORS.textMuted,
+  },
+  USER_REGISTERED: {
+    label: 'Account Created',
+    icon: 'user-plus',
+    color: COLORS.success,
+  },
+  FOLDER_CREATED: {
+    label: 'Folder Created',
+    icon: 'folder-plus',
+    color: COLORS.warning,
+  },
+  FOLDER_RENAMED: {
+    label: 'Folder Renamed',
+    icon: 'edit-2',
+    color: COLORS.warning,
+  },
+  FOLDER_DELETED: {
+    label: 'Folder Deleted',
+    icon: 'folder-minus',
+    color: COLORS.danger,
+  },
+} as const;
 
-export const STORAGE_BUCKET = 'documents';
+export const AUDIT_ACTION_LABELS = {
+  DOCUMENT_UPLOADED: 'Document uploaded',
+  HASH_CREATED: 'SHA-256 fingerprint generated',
+  DOCUMENT_VERIFIED: 'Document verified',
+  DOCUMENT_DOWNLOADED: 'Document downloaded',
+  DOCUMENT_DELETED: 'Document deleted',
+  DOCUMENT_SHARED: 'Document shared',
+  SHARE_REVOKED: 'Share access revoked',
+  BLOCKCHAIN_ANCHORED: 'Hash anchored to blockchain',
+  BLOCKCHAIN_ANCHOR_FAILED: 'Blockchain anchoring failed',
+  USER_LOGIN: 'User signed in',
+  USER_LOGOUT: 'User signed out',
+  USER_REGISTERED: 'Account created',
+  FOLDER_CREATED: 'Folder created',
+  FOLDER_RENAMED: 'Folder renamed',
+  FOLDER_DELETED: 'Folder deleted',
+} as const;
 
-// ── Sharing Configuration ────────────────────────────────────
-
-export const SHARE_DURATIONS: Record<string, number | null> = {
+export const SHARE_DURATIONS = {
   '1_HOUR': 3600,
   '24_HOURS': 86400,
   '7_DAYS': 604800,
   'NEVER': null,
-};
+} as const;
 
-// ── Audit Actions ────────────────────────────────────────────
-
-export const AUDIT_ACTION_LABELS: Record<string, string> = {
-  USER_LOGIN: 'User signed in',
-  USER_LOGOUT: 'User signed out',
-  USER_REGISTERED: 'User account created',
-  FOLDER_CREATED: 'Folder created',
-  FOLDER_RENAMED: 'Folder renamed',
-  FOLDER_DELETED: 'Folder deleted',
-  DOCUMENT_UPLOADED: 'Document uploaded',
-  DOCUMENT_VIEWED: 'Document viewed',
-  DOCUMENT_DOWNLOADED: 'Document downloaded',
-  DOCUMENT_RENAMED: 'Document renamed',
-  DOCUMENT_MOVED: 'Document moved',
-  DOCUMENT_DELETED: 'Document deleted',
-  DOCUMENT_SHARED: 'Document shared',
-  SHARE_REVOKED: 'Share access revoked',
-  DOCUMENT_VERIFIED: 'Document verified',
-  HASH_CREATED: 'SHA-256 proof created',
-  BLOCKCHAIN_ANCHORED: 'Hash anchored to blockchain',
-  BLOCKCHAIN_ANCHOR_FAILED: 'Blockchain anchoring failed',
-};
+export const FILE_ICONS = {
+  'application/pdf': 'file-text',
+  'image/jpeg': 'image',
+  'image/png': 'image',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'file-text',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'grid',
+  'default': 'file',
+} as const;
