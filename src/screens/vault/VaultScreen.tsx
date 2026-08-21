@@ -1,6 +1,7 @@
 // ============================================================
 // TrustLink — Professional Vault Screen (File & Folder Explorer)
 // Cross-Platform: Works seamlessly on Android (OPPO F23), iOS & Web
+// Multi-Select via Long Press Support
 // ============================================================
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -52,6 +53,10 @@ export function VaultScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Long-press Multi-selection State
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const isSelectionMode = selectedKeys.size > 0;
+
   // Live Upload Animation & Step Progress State
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({
     visible: false,
@@ -95,11 +100,13 @@ export function VaultScreen({ route, navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadVaultContents();
+      setSelectedKeys(new Set());
     }, [folderId])
   );
 
   const onRefresh = () => {
     setRefreshing(true);
+    setSelectedKeys(new Set());
     loadVaultContents();
   };
 
@@ -111,6 +118,70 @@ export function VaultScreen({ route, navigation }: Props) {
       return item.data.name.toLowerCase().includes(q);
     });
   }, [items, searchQuery]);
+
+  // Selection Handlers
+  const toggleItemSelection = (itemKey: string) => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(itemKey)) {
+        next.delete(itemKey);
+      } else {
+        next.add(itemKey);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedKeys.size === filteredItems.length) {
+      setSelectedKeys(new Set());
+    } else {
+      const allKeys = new Set(filteredItems.map(it => `${it.type}-${it.data.id}`));
+      setSelectedKeys(allKeys);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedKeys(new Set());
+  };
+
+  const handleBatchDelete = () => {
+    const count = selectedKeys.size;
+    if (count === 0) return;
+
+    Alert.alert(
+      'Delete Selected Items',
+      `Are you sure you want to permanently delete ${count} selected item${count > 1 ? 's' : ''}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Delete (${count})`,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const selectedList = items.filter(it => selectedKeys.has(`${it.type}-${it.data.id}`));
+              
+              for (const item of selectedList) {
+                if (item.type === 'folder') {
+                  await folderService.deleteFolder(item.data.id, true);
+                } else {
+                  await documentService.deleteDocument(item.data);
+                }
+              }
+
+              setSelectedKeys(new Set());
+              await loadVaultContents();
+            } catch (err: any) {
+              Alert.alert('Delete Failed', err.message || 'Could not delete selected items');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleOpenCreateFolderModal = () => {
     setNewFolderName('');
@@ -273,22 +344,43 @@ export function VaultScreen({ route, navigation }: Props) {
   };
 
   const renderItem = ({ item }: { item: ListItem }) => {
+    const itemKey = `${item.type}-${item.data.id}`;
+    const isSelected = selectedKeys.has(itemKey);
+
     if (item.type === 'folder') {
       return (
         <FolderCard 
           folder={item.data} 
-          onPress={() => navigation.push('VaultRoot', { 
-            folderId: item.data.id, 
-            folderName: item.data.name 
-          })} 
-          onOptionsPress={() => handleFolderOptions(item.data)}
+          isSelected={isSelected}
+          isSelectionMode={isSelectionMode}
+          onPress={() => {
+            if (isSelectionMode) {
+              toggleItemSelection(itemKey);
+            } else {
+              navigation.push('VaultRoot', { 
+                folderId: item.data.id, 
+                folderName: item.data.name 
+              });
+            }
+          }}
+          onLongPress={() => toggleItemSelection(itemKey)}
+          onOptionsPress={isSelectionMode ? undefined : () => handleFolderOptions(item.data)}
         />
       );
     } else {
       return (
         <DocumentCard 
           document={item.data} 
-          onPress={() => navigation.navigate('DocumentDetail', { document: item.data })} 
+          isSelected={isSelected}
+          isSelectionMode={isSelectionMode}
+          onPress={() => {
+            if (isSelectionMode) {
+              toggleItemSelection(itemKey);
+            } else {
+              navigation.navigate('DocumentDetail', { document: item.data });
+            }
+          }}
+          onLongPress={() => toggleItemSelection(itemKey)}
         />
       );
     }
@@ -296,65 +388,106 @@ export function VaultScreen({ route, navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {/* Search and Action Bar */}
-      <View style={styles.topBar}>
-        {isInsideFolder && (
-          <TouchableOpacity
-            style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Feather name="arrow-left" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        )}
-
-        <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.textPrimary }]}
-            placeholder={isInsideFolder ? `Search in ${folderName}...` : "Search vault files..."}
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Feather name="x" size={16} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.headerActions}>
-          {/* Only show "New Folder" at Root Level */}
-          {!isInsideFolder && (
+      {/* Top Header Bar: Normal vs Selection Mode */}
+      {isSelectionMode ? (
+        <View style={[styles.selectionBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <View style={styles.selectionLeft}>
             <TouchableOpacity
-              style={[styles.actionIconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={handleOpenCreateFolderModal}
+              style={[styles.actionIconButton, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}
+              onPress={handleClearSelection}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Feather name="x" size={18} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={[styles.selectionCountText, { color: colors.textPrimary }]}>
+              {selectedKeys.size} Selected
+            </Text>
+          </View>
+
+          <View style={styles.selectionActions}>
+            <TouchableOpacity
+              style={[styles.selectionActionBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}
+              onPress={handleSelectAll}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.selectionActionText, { color: colors.primary }]}>
+                {selectedKeys.size === filteredItems.length ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.selectionActionBtn, styles.deleteActionBtn, { backgroundColor: colors.dangerMuted, borderColor: colors.danger + '60' }]}
+              onPress={handleBatchDelete}
+              activeOpacity={0.75}
+            >
+              <Feather name="trash-2" size={14} color={colors.danger} />
+              <Text style={[styles.selectionActionText, { color: colors.danger }]}>
+                Delete ({selectedKeys.size})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        /* Regular Search and Action Bar */
+        <View style={styles.topBar}>
+          {isInsideFolder && (
+            <TouchableOpacity
+              style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => navigation.goBack()}
               activeOpacity={0.7}
             >
-              <Feather name="folder-plus" size={18} color={colors.primary} />
+              <Feather name="arrow-left" size={20} color={colors.primary} />
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={[styles.actionIconButton, styles.uploadButton, { backgroundColor: colors.primary, borderColor: colors.primary }]}
-            onPress={handleUploadFile}
-            disabled={uploading}
-            activeOpacity={0.7}
-          >
-            {uploading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Feather name="upload" size={18} color="#FFFFFF" />
+          <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Feather name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.textPrimary }]}
+              placeholder={isInsideFolder ? `Search in ${folderName}...` : "Search vault files..."}
+              placeholderTextColor={colors.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Feather name="x" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
+
+          <View style={styles.headerActions}>
+            {/* Only show "New Folder" at Root Level */}
+            {!isInsideFolder && (
+              <TouchableOpacity
+                style={[styles.actionIconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={handleOpenCreateFolderModal}
+                activeOpacity={0.7}
+              >
+                <Feather name="folder-plus" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.actionIconButton, styles.uploadButton, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              onPress={handleUploadFile}
+              disabled={uploading}
+              activeOpacity={0.7}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Feather name="upload" size={18} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Breadcrumb path if inside folder */}
-      {isInsideFolder && (
+      {isInsideFolder && !isSelectionMode && (
         <View style={[styles.breadcrumb, { backgroundColor: colors.surfaceHighlight, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => navigation.popToTop()}>
             <Text style={[styles.breadcrumbRoot, { color: colors.primary }]}>Vault Root</Text>
@@ -552,6 +685,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     gap: SPACING.sm,
+  },
+  selectionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+  },
+  selectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  selectionCountText: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: TYPOGRAPHY.bold,
+  },
+  selectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  selectionActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  deleteActionBtn: {},
+  selectionActionText: {
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.bold,
   },
   backButton: {
     width: 40,

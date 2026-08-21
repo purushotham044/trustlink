@@ -1,5 +1,6 @@
 // ============================================================
 // TrustLink — Professional Folder Card Component
+// Supports Long-Press Multi-Select Mode
 // ============================================================
 
 import React from 'react';
@@ -12,18 +13,49 @@ import { Folder } from '@/types';
 interface FolderCardProps {
   folder: Folder;
   onPress: () => void;
+  onLongPress?: () => void;
   onOptionsPress?: () => void;
+  isSelected?: boolean;
+  isSelectionMode?: boolean;
 }
 
-export function FolderCard({ folder, onPress, onOptionsPress }: FolderCardProps) {
+export function FolderCard({
+  folder,
+  onPress,
+  onLongPress,
+  onOptionsPress,
+  isSelected = false,
+  isSelectionMode = false,
+}: FolderCardProps) {
   const { colors } = useTheme();
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: isSelected ? colors.primary + '15' : colors.surface,
+          borderColor: isSelected ? colors.primary : colors.border,
+        },
+      ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
       activeOpacity={0.7}
     >
+      {/* Checkbox indicator when in selection mode */}
+      {isSelectionMode && (
+        <View
+          style={[
+            styles.checkbox,
+            { borderColor: isSelected ? colors.primary : colors.border },
+            isSelected && { backgroundColor: colors.primary },
+          ]}
+        >
+          {isSelected && <Feather name="check" size={13} color="#FFFFFF" />}
+        </View>
+      )}
+
       <View style={[styles.iconContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
         <Feather name="folder" size={20} color={colors.primary} />
       </View>
@@ -34,18 +66,22 @@ export function FolderCard({ folder, onPress, onOptionsPress }: FolderCardProps)
         </Text>
       </View>
 
-      {onOptionsPress && (
-        <TouchableOpacity
-          style={styles.optionsButton}
-          onPress={onOptionsPress}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          activeOpacity={0.6}
-        >
-          <Feather name="more-vertical" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
-      )}
+      {!isSelectionMode && (
+        <>
+          {onOptionsPress && (
+            <TouchableOpacity
+              style={styles.optionsButton}
+              onPress={onOptionsPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.6}
+            >
+              <Feather name="more-vertical" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
 
-      <Feather name="chevron-right" size={18} color={colors.textMuted} />
+          <Feather name="chevron-right" size={18} color={colors.textMuted} />
+        </>
+      )}
     </TouchableOpacity>
   );
 }
@@ -59,6 +95,15 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     marginBottom: SPACING.sm,
     borderWidth: 1,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
   },
   iconContainer: {
     width: 40,

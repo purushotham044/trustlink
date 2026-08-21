@@ -1,5 +1,6 @@
 // ============================================================
 // TrustLink — Professional Document Card Component
+// Supports Long-Press Multi-Select Mode
 // ============================================================
 
 import React from 'react';
@@ -12,9 +13,18 @@ import { Document } from '@/types';
 interface DocumentCardProps {
   document: Document;
   onPress: () => void;
+  onLongPress?: () => void;
+  isSelected?: boolean;
+  isSelectionMode?: boolean;
 }
 
-export function DocumentCard({ document, onPress }: DocumentCardProps) {
+export function DocumentCard({
+  document,
+  onPress,
+  onLongPress,
+  isSelected = false,
+  isSelectionMode = false,
+}: DocumentCardProps) {
   const { colors } = useTheme();
 
   // Determine vector icon and color based on mime type
@@ -52,10 +62,31 @@ export function DocumentCard({ document, onPress }: DocumentCardProps) {
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: isSelected ? colors.primary + '15' : colors.surface,
+          borderColor: isSelected ? colors.primary : colors.border,
+        },
+      ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
       activeOpacity={0.7}
     >
+      {/* Checkbox indicator when in selection mode */}
+      {isSelectionMode && (
+        <View
+          style={[
+            styles.checkbox,
+            { borderColor: isSelected ? colors.primary : colors.border },
+            isSelected && { backgroundColor: colors.primary },
+          ]}
+        >
+          {isSelected && <Feather name="check" size={13} color="#FFFFFF" />}
+        </View>
+      )}
+
       <View style={[styles.iconContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
         {getFileIcon()}
       </View>
@@ -70,29 +101,33 @@ export function DocumentCard({ document, onPress }: DocumentCardProps) {
       </View>
 
       <View style={styles.rightSection}>
-        <View
-          style={[
-            styles.badge,
-            isVerified && { backgroundColor: colors.successMuted, borderColor: colors.success + '40' },
-            isFailed && { backgroundColor: colors.dangerMuted, borderColor: colors.danger + '40' },
-            !isVerified && !isFailed && { backgroundColor: colors.warningMuted, borderColor: colors.warning + '40' },
-          ]}
-        >
-          <Feather
-            name={isVerified ? 'shield' : isFailed ? 'alert-triangle' : 'clock'}
-            size={11}
-            color={isVerified ? colors.success : isFailed ? colors.danger : colors.warning}
-          />
-          <Text
-            style={[
-              styles.badgeText,
-              { color: isVerified ? colors.success : isFailed ? colors.danger : colors.warning },
-            ]}
-          >
-            {isVerified ? 'VERIFIED' : isFailed ? 'FAILED' : 'PENDING'}
-          </Text>
-        </View>
-        <Feather name="chevron-right" size={16} color={colors.textMuted} />
+        {!isSelectionMode ? (
+          <>
+            <View
+              style={[
+                styles.badge,
+                isVerified && { backgroundColor: colors.successMuted, borderColor: colors.success + '40' },
+                isFailed && { backgroundColor: colors.dangerMuted, borderColor: colors.danger + '40' },
+                !isVerified && !isFailed && { backgroundColor: colors.warningMuted, borderColor: colors.warning + '40' },
+              ]}
+            >
+              <Feather
+                name={isVerified ? 'shield' : isFailed ? 'alert-triangle' : 'clock'}
+                size={11}
+                color={isVerified ? colors.success : isFailed ? colors.danger : colors.warning}
+              />
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: isVerified ? colors.success : isFailed ? colors.danger : colors.warning },
+                ]}
+              >
+                {isVerified ? 'VERIFIED' : isFailed ? 'FAILED' : 'PENDING'}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -106,6 +141,15 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     borderWidth: 1,
     marginBottom: SPACING.sm,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
   },
   iconContainer: {
     width: 44,
