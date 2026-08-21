@@ -1,31 +1,39 @@
 // ============================================================
 // TrustLink — Root Navigator
 //
-// The security gate of the application.
-// Controls routing between:
-//   - Splash (session restoring)
-//   - Auth  (unauthenticated)
-//   - Main  (authenticated)
-//
-// The mobile app is NEVER the security boundary —
-// Supabase RLS enforces authorization at the database/storage layer.
-// This navigator only controls UX routing.
+// Controls routing between Splash, Auth, and Main navigation
+// with full dynamic theme support for React Navigation container
 // ============================================================
 
 import React, { useState, useCallback } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/context/ThemeContext';
 import { SplashScreen } from '@/screens/auth/SplashScreen';
 import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
 
 export function RootNavigator() {
   const { user, initialized } = useAuth();
+  const { colors, isDark } = useTheme();
   const [splashDone, setSplashDone] = useState(false);
 
   const handleSplashReady = useCallback(() => {
     setSplashDone(true);
   }, []);
+
+  const navTheme = {
+    dark: isDark,
+    colors: {
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.textPrimary,
+      border: colors.border,
+      notification: colors.danger,
+    },
+    fonts: DefaultTheme.fonts,
+  };
 
   // Show splash until auth is initialized and splash animation completes
   if (!splashDone) {
@@ -41,7 +49,7 @@ export function RootNavigator() {
   const isAuthenticated = !!user;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navTheme}>
       {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
