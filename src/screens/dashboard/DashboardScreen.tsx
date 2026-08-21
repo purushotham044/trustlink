@@ -24,6 +24,7 @@ import { documentService } from '@/services/documentService';
 import { Document as VaultDocument } from '@/types';
 import { DocumentCard } from '@/components/vault/DocumentCard';
 import { HowItWorksModal } from '@/components/common/HowItWorksModal';
+import { UploadProgressModal, UploadProgressState } from '@/components/common/UploadProgressModal';
 
 interface DashboardStats {
   totalDocs: number;
@@ -48,6 +49,13 @@ export function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [explainerVisible, setExplainerVisible] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({
+    visible: false,
+    fileName: '',
+    step: 1,
+    statusText: 'Preparing upload...',
+    isComplete: false,
+  });
 
   const displayName = profile?.full_name ?? user?.email?.split('@')[0] ?? 'User';
 
@@ -74,8 +82,8 @@ export function DashboardScreen() {
           .eq('integrity_status', 'VERIFIED'),
         supabase
           .from('blockchain_proofs')
-          .select('*, documents!inner(owner_id)', { count: 'exact', head: true })
-          .eq('documents.owner_id', user.id)
+          .select('*, document:documents!inner(owner_id)', { count: 'exact', head: true })
+          .eq('document.owner_id', user.id)
           .eq('status', 'CONFIRMED'),
         supabase
           .from('document_shares')
@@ -126,30 +134,50 @@ export function DashboardScreen() {
       const file = result.assets[0];
       setUploading(true);
 
+      setUploadProgress({
+        visible: true,
+        fileName: file.name,
+        step: 1,
+        statusText: 'Computing SHA-256 digital fingerprint...',
+        isComplete: false,
+      });
+
       const uploaded = await documentService.uploadDocument(
         file.uri,
         file.name,
         file.mimeType || 'application/octet-stream',
-        null
+        null,
+        (step, statusText) => {
+          setUploadProgress(prev => ({
+            ...prev,
+            step,
+            statusText,
+            isComplete: step >= 4,
+          }));
+        }
       );
 
-      Alert.alert(
-        'Upload Successful',
-        `"${file.name}" has been stored securely and its unique SHA-256 digital fingerprint recorded.`,
-        [
-          { text: 'OK' },
-          {
-            text: 'View Document',
-            onPress: () => navigation.navigate('Vault', {
-              screen: 'DocumentDetail',
-              params: { document: uploaded },
-            }),
-          },
-        ]
-      );
-      loadDashboardData();
+      setTimeout(() => {
+        setUploadProgress(prev => ({ ...prev, visible: false }));
+        loadDashboardData();
+        Alert.alert(
+          'Upload Successful',
+          `"${file.name}" has been stored securely and its unique SHA-256 digital fingerprint recorded.`,
+          [
+            { text: 'OK' },
+            {
+              text: 'View Document',
+              onPress: () => navigation.navigate('Vault', {
+                screen: 'DocumentDetail',
+                params: { document: uploaded },
+              }),
+            },
+          ]
+        );
+      }, 1000);
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message);
+      setUploadProgress(prev => ({ ...prev, visible: false }));
+      Alert.alert('Upload Notice', err.message || 'Could not complete file upload');
     } finally {
       setUploading(false);
     }
@@ -324,6 +352,9 @@ export function DashboardScreen() {
         visible={explainerVisible}
         onClose={() => setExplainerVisible(false)}
       />
+
+      {/* Live Upload Progress & Animation Modal */}
+      <UploadProgressModal state={uploadProgress} />
     </ScrollView>
   );
 }

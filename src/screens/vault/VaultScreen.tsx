@@ -30,6 +30,7 @@ import { Folder, Document as VaultDocument } from '@/types';
 import { FolderCard } from '@/components/vault/FolderCard';
 import { DocumentCard } from '@/components/vault/DocumentCard';
 import { Button } from '@/components/common/Button';
+import { UploadProgressModal, UploadProgressState } from '@/components/common/UploadProgressModal';
 
 type Props = StackScreenProps<VaultStackParamList, 'VaultRoot'>;
 
@@ -47,6 +48,15 @@ export function VaultScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Live Upload Animation & Step Progress State
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({
+    visible: false,
+    fileName: '',
+    step: 1,
+    statusText: 'Preparing upload...',
+    isComplete: false,
+  });
 
   // Folder Modal State (Create / Rename)
   const [folderModalVisible, setFolderModalVisible] = useState(false);
@@ -203,16 +213,38 @@ export function VaultScreen({ route, navigation }: Props) {
       const file = result.assets[0];
       setUploading(true);
 
+      // Start upload animation overlay
+      setUploadProgress({
+        visible: true,
+        fileName: file.name,
+        step: 1,
+        statusText: 'Computing SHA-256 digital fingerprint...',
+        isComplete: false,
+      });
+
       await documentService.uploadDocument(
         file.uri,
         file.name,
         file.mimeType || 'application/octet-stream',
-        folderId
+        folderId,
+        (step, statusText) => {
+          setUploadProgress(prev => ({
+            ...prev,
+            step,
+            statusText,
+            isComplete: step >= 4,
+          }));
+        }
       );
 
-      loadData();
+      // Give user smooth visual confirmation before closing
+      setTimeout(() => {
+        setUploadProgress(prev => ({ ...prev, visible: false }));
+        loadData();
+      }, 1000);
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message);
+      setUploadProgress(prev => ({ ...prev, visible: false }));
+      Alert.alert('Upload Notice', err.message || 'Could not complete file upload');
     } finally {
       setUploading(false);
     }
@@ -422,6 +454,9 @@ export function VaultScreen({ route, navigation }: Props) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Live Upload Progress & Animation Modal */}
+      <UploadProgressModal state={uploadProgress} />
     </View>
   );
 }

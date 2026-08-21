@@ -37,18 +37,19 @@ export const documentService = {
 
   /**
    * Uploads a file to Supabase Storage and creates a document record.
-   * Computes SHA-256 natively before uploading.
+   * Computes SHA-256 natively before uploading with live step progress callbacks.
    */
   async uploadDocument(
     fileUri: string,
     fileName: string,
     mimeType: string,
-    folderId: string | null = null
+    folderId: string | null = null,
+    onProgress?: (step: number, statusText: string) => void
   ): Promise<Document> {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated. Please sign in again.');
 
-    // 0. Ensure user profile exists in public.profiles to satisfy foreign key constraint
+    // 0. Profile sync
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -68,7 +69,8 @@ export const documentService = {
       console.warn('Profile sync note:', profileErr);
     }
 
-    // 1. Read file to base64 and decode to ArrayBuffer
+    // Step 1: Read & Hash
+    onProgress?.(1, 'Computing cryptographic SHA-256 fingerprint...');
     const base64Content = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -79,12 +81,11 @@ export const documentService = {
       throw new Error('File size exceeds the 50MB limit.');
     }
 
-    // 2. Compute SHA-256 hash directly on the binary byte array
     const uint8Array = new Uint8Array(arrayBuffer);
     const sha256Hash = ethers.sha256(uint8Array).replace('0x', '').toLowerCase();
 
-    // 3. Upload to Storage
-    // Path: {user_id}/[folders/{folder_id}/]{timestamp}_{sanitized_filename}
+    // Step 2: Storage Upload
+    onProgress?.(2, 'Encrypting & uploading to vault storage...');
     const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const folderPrefix = folderId ? `folders/${folderId}/` : '';
     const storagePath = `${user.user.id}/${folderPrefix}${Date.now()}_${safeFileName}`;
@@ -101,7 +102,8 @@ export const documentService = {
       throw new Error(`Storage error: ${uploadError.message || 'Could not save file to storage bucket.'}`);
     }
 
-    // 4. Create database record
+    // Step 3: Database & Ledger
+    onProgress?.(3, 'Recording verification entry in database...');
     const { data, error: dbError } = await supabase
       .from('documents')
       .insert({
@@ -123,14 +125,14 @@ export const documentService = {
       throw new Error(`Database error: ${dbError.message || 'Could not create document record.'}`);
     }
 
-    // 5. Create integrity record (resilient)
+    // Create integrity record (resilient)
     try {
       await integrityService.createIntegrityRecord(data.id, sha256Hash, 1);
     } catch (integrityErr: any) {
       console.warn('Integrity ledger record note:', integrityErr.message);
     }
 
-    // 6. Log upload to audit trail (resilient)
+    // Log upload to audit trail (resilient)
     try {
       await supabase.from('audit_logs').insert({
         user_id: user.user.id,
@@ -142,6 +144,7 @@ export const documentService = {
       console.warn('Audit log note:', auditErr.message);
     }
 
+    onProgress?.(4, 'Document secured and ready in your vault!');
     return data as Document;
   },
 
