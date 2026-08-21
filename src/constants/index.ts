@@ -5,41 +5,57 @@
 
 // ── Executive Design System ──────────────────────────────────
 
-export const COLORS = {
-  // Primary backgrounds (Crisp White & Off-White Dominated)
+export const LIGHT_COLORS = {
   background: '#F8FAFC',
   surface: '#FFFFFF',
   surfaceElevated: '#F1F5F9',
   surfaceHighlight: '#F1F5F9',
   surfaceBorder: '#E2E8F0',
-
-  // Accent — Deep Executive Navy & Royal Blue
   primary: '#0F2744',
   primaryDim: '#172554',
   primaryMuted: 'rgba(15, 39, 68, 0.08)',
-
-  // Status colors
   success: '#059669',
   successMuted: 'rgba(5, 150, 105, 0.10)',
   warning: '#D97706',
   warningMuted: 'rgba(217, 119, 6, 0.10)',
   danger: '#DC2626',
   dangerMuted: 'rgba(220, 38, 38, 0.10)',
-
-  // Blockchain accent — Deep Indigo
   blockchain: '#4F46E5',
   blockchainMuted: 'rgba(79, 70, 229, 0.10)',
-
-  // High-Contrast Professional Text
   textPrimary: '#0F172A',
   textSecondary: '#475569',
   textMuted: '#64748B',
   textInverse: '#FFFFFF',
-
-  // Crisp Light Borders
   border: '#E2E8F0',
   borderLight: '#CBD5E1',
 } as const;
+
+export const DARK_COLORS = {
+  background: '#0A0E1A',
+  surface: '#111827',
+  surfaceElevated: '#1A2235',
+  surfaceHighlight: '#1A2235',
+  surfaceBorder: '#1E293B',
+  primary: '#00D4FF',
+  primaryDim: '#0099BB',
+  primaryMuted: 'rgba(0, 212, 255, 0.12)',
+  success: '#10B981',
+  successMuted: 'rgba(16, 185, 129, 0.12)',
+  warning: '#F59E0B',
+  warningMuted: 'rgba(245, 158, 11, 0.12)',
+  danger: '#EF4444',
+  dangerMuted: 'rgba(239, 68, 68, 0.12)',
+  blockchain: '#8B5CF6',
+  blockchainMuted: 'rgba(139, 92, 246, 0.12)',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textMuted: '#475569',
+  textInverse: '#0A0E1A',
+  border: '#1E293B',
+  borderLight: '#2D3748',
+} as const;
+
+export const COLORS = LIGHT_COLORS;
 
 export const TYPOGRAPHY = {
   // Font sizes
@@ -223,7 +239,7 @@ export const AUDIT_ACTIONS = {
   },
 } as const;
 
-export const AUDIT_ACTION_LABELS = {
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
   DOCUMENT_UPLOADED: 'Document uploaded',
   HASH_CREATED: 'SHA-256 fingerprint generated',
   DOCUMENT_VERIFIED: 'Document verified',

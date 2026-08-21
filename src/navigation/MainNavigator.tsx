@@ -8,6 +8,8 @@ import { Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, SPACING } from '@/constants';
 
+import { useTheme } from '@/context/ThemeContext';
+
 import { DashboardScreen } from '@/screens/dashboard/DashboardScreen';
 import { VaultNavigator } from './VaultNavigator';
 import { ShareScreen } from '@/screens/share/ShareScreen';
@@ -17,13 +19,15 @@ import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 const Tab = createBottomTabNavigator();
 
 export function MainNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
           paddingBottom: Platform.OS === 'ios' ? SPACING.lg : SPACING.sm,
           paddingTop: SPACING.xs,
@@ -34,8 +38,8 @@ export function MainNavigator() {
           shadowOpacity: 1,
           shadowRadius: 6,
         },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: TYPOGRAPHY.semibold,
