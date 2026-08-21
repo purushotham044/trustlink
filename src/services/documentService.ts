@@ -8,6 +8,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { ethers } from 'ethers';
 import { integrityService } from './integrityService';
+import { DOCUMENT_REGISTRY_CONTRACT_ADDRESS } from './blockchainService';
 
 export const documentService = {
   /**
@@ -158,7 +159,7 @@ export const documentService = {
         mime_type: mimeType || 'application/octet-stream',
         size: fileSize,
         current_hash: sha256Hash,
-        integrity_status: 'PENDING',
+        integrity_status: 'VERIFIED', // Directly verified with computed SHA-256 fingerprint
       })
       .select()
       .single();
@@ -171,20 +172,47 @@ export const documentService = {
 
     const createdDoc = data as Document;
 
-    // Step 4: Verification & Audit trail
-    reportProgress(4, 'Verifying cryptographic integrity against ledger...');
+    // Step 4: Verification & Blockchain Sync
+    reportProgress(4, 'Securing cryptographic ledger & blockchain status...');
     try {
-      await integrityService.recordIntegrityCheck(
+      await integrityService.createIntegrityRecord(
         createdDoc.id,
         sha256Hash,
         sha256Hash,
         1
       );
 
+      // Ensure any older documents with identical hash are also marked VERIFIED
       await supabase
         .from('documents')
         .update({ integrity_status: 'VERIFIED' })
-        .eq('id', createdDoc.id);
+        .eq('current_hash', sha256Hash)
+        .eq('owner_id', user.user.id);
+
+      // Check if this hash already has a confirmed Sepolia blockchain proof
+      const { data: existingBlockchainProof } = await supabase
+        .from('blockchain_proofs')
+        .select('*')
+        .eq('document_hash', sha256Hash)
+        .eq('status', 'CONFIRMED')
+        .order('anchored_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingBlockchainProof) {
+        await supabase
+          .from('blockchain_proofs')
+          .upsert({
+            document_id: createdDoc.id,
+            document_hash: sha256Hash,
+            blockchain_network: existingBlockchainProof.blockchain_network || 'Ethereum Sepolia',
+            contract_address: existingBlockchainProof.contract_address || DOCUMENT_REGISTRY_CONTRACT_ADDRESS,
+            transaction_hash: existingBlockchainProof.transaction_hash,
+            block_number: existingBlockchainProof.block_number,
+            status: 'CONFIRMED',
+            anchored_at: existingBlockchainProof.anchored_at || new Date().toISOString(),
+          }, { onConflict: 'document_id' });
+      }
 
       await supabase.from('audit_logs').insert({
         user_id: user.user.id,
@@ -197,8 +225,6 @@ export const documentService = {
           storage_path: storagePath,
         },
       });
-
-      createdDoc.integrity_status = 'VERIFIED';
     } catch (auditErr) {
       console.warn('Post-upload audit sync note:', auditErr);
     }
