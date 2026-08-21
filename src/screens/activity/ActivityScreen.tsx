@@ -33,7 +33,7 @@ interface DateSection {
 
 export function ActivityScreen() {
   const insets = useSafeAreaInsets();
-  const [activeCategory, setActiveCategory] = useState<AuditCategory>('FILES');
+  const [activeCategory, setActiveCategory] = useState<AuditCategory>('ALL');
   const [logs, setLogs] = useState<ExtendedAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -308,6 +308,7 @@ export function ActivityScreen() {
   };
 
   const categories: { key: AuditCategory; label: string; icon: any }[] = [
+    { key: 'ALL', label: 'All Activity', icon: 'layers' },
     { key: 'FILES', label: 'Vault Files', icon: 'file' },
     { key: 'INTEGRITY', label: 'Signatures', icon: 'shield' },
     { key: 'BLOCKCHAIN', label: 'Blockchain', icon: 'link' },

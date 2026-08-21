@@ -187,36 +187,50 @@ export const documentService = {
   },
 
   /**
-   * Deletes a document from Storage and Database.
+   * Deletes a document from Database (and its child records) and Storage.
    */
   async deleteDocument(document: Document): Promise<void> {
     const { data: user } = await supabase.auth.getUser();
 
-    // 1. Delete from DB first
+    // 1. Clean up child records first to ensure no foreign key blockages
+    try {
+      await supabase.from('document_integrity_records').delete().eq('document_id', document.id);
+      await supabase.from('blockchain_proofs').delete().eq('document_id', document.id);
+      await supabase.from('document_shares').delete().eq('document_id', document.id);
+      // Detach audit logs from document foreign key without deleting audit history
+      await supabase.from('audit_logs').update({ document_id: null }).eq('document_id', document.id);
+    } catch (cleanErr) {
+      console.warn('Pre-delete cleanup note:', cleanErr);
+    }
+
+    // 2. Delete main document record
     const { error: dbError } = await supabase
       .from('documents')
       .delete()
       .eq('id', document.id);
 
-    if (dbError) throw dbError;
-
-    // 2. Delete from storage
-    const { error: storageError } = await supabase.storage
-      .from('documents')
-      .remove([document.storage_path]);
-
-    if (storageError) {
-      console.warn(`Failed to delete storage file ${document.storage_path}:`, storageError);
+    if (dbError) {
+      console.error('Database delete error:', dbError);
+      throw new Error(`Database delete error: ${dbError.message || 'Could not delete document'}`);
     }
 
-    // 3. Log deletion to audit trail
+    // 3. Delete file from Storage bucket
+    try {
+      await supabase.storage
+        .from('documents')
+        .remove([document.storage_path]);
+    } catch (storageErr) {
+      console.warn(`Failed to delete storage file ${document.storage_path}:`, storageErr);
+    }
+
+    // 4. Log deletion to audit trail
     if (user?.user) {
       try {
         await supabase.from('audit_logs').insert({
           user_id: user.user.id,
-          document_id: document.id,
+          document_id: null,
           action: 'DOCUMENT_DELETED',
-          metadata: { name: document.name },
+          metadata: { name: document.name, document_id: document.id },
         });
       } catch (e) {}
     }
