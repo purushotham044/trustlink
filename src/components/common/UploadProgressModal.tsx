@@ -11,10 +11,11 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 
 export interface UploadProgressState {
   visible: boolean;
@@ -26,12 +27,27 @@ export interface UploadProgressState {
 
 interface UploadProgressModalProps {
   state: UploadProgressState;
+  onClose?: () => void;
 }
 
-export function UploadProgressModal({ state }: UploadProgressModalProps) {
+export function UploadProgressModal({ state, onClose }: UploadProgressModalProps) {
+  const { colors } = useTheme();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0.15)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
+
+  // Auto-close after completion
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (state.visible && state.isComplete && onClose) {
+      timer = setTimeout(() => {
+        onClose();
+      }, 1400);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [state.visible, state.isComplete, onClose]);
 
   useEffect(() => {
     if (state.visible && !state.isComplete) {
@@ -101,9 +117,10 @@ export function UploadProgressModal({ state }: UploadProgressModalProps) {
       transparent={true}
       animationType="fade"
       statusBarTranslucent={true}
+      onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {/* Animated Glowing Icon Header */}
           <View style={styles.iconWrapper}>
             <Animated.View
@@ -111,19 +128,25 @@ export function UploadProgressModal({ state }: UploadProgressModalProps) {
                 styles.iconGlow,
                 {
                   transform: [{ scale: pulseAnim }],
-                  backgroundColor: state.isComplete ? COLORS.successMuted : COLORS.primaryMuted,
+                  backgroundColor: state.isComplete ? colors.successMuted : colors.primaryMuted,
                 },
               ]}
             />
-            <View style={[styles.iconCircle, state.isComplete && styles.iconCircleComplete]}>
+            <View
+              style={[
+                styles.iconCircle,
+                { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary },
+                state.isComplete && { backgroundColor: colors.success, borderColor: colors.success },
+              ]}
+            >
               {state.isComplete ? (
-                <Feather name="check" size={28} color={COLORS.textInverse} />
+                <Feather name="check" size={28} color="#FFFFFF" />
               ) : (
                 <Animated.View style={{ transform: [{ rotate: spin }] }}>
                   <MaterialCommunityIcons
                     name="cloud-sync"
                     size={28}
-                    color={COLORS.primary}
+                    color={colors.primary}
                   />
                 </Animated.View>
               )}
@@ -131,72 +154,125 @@ export function UploadProgressModal({ state }: UploadProgressModalProps) {
           </View>
 
           {/* Title & Target Document Name */}
-          <Text style={styles.title}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>
             {state.isComplete ? 'Document Secured!' : 'Securing Document'}
           </Text>
-          <Text style={styles.fileName} numberOfLines={1}>
+          <Text style={[styles.fileName, { color: colors.textMuted }]} numberOfLines={1}>
             {state.fileName}
           </Text>
 
           {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarContainer, { backgroundColor: colors.surfaceHighlight }]}>
             <Animated.View
               style={[
                 styles.progressBarFill,
                 {
                   width: progressPercent,
-                  backgroundColor: state.isComplete ? COLORS.success : COLORS.primary,
+                  backgroundColor: state.isComplete ? colors.success : colors.primary,
                 },
               ]}
             />
           </View>
 
           {/* Step Indicators */}
-          <View style={styles.stepsContainer}>
+          <View style={[styles.stepsContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
             {/* Step 1 */}
             <View style={styles.stepRow}>
-              <View style={[styles.stepDot, state.step >= 1 && styles.stepDotActive, state.step > 1 && styles.stepDotDone]}>
+              <View
+                style={[
+                  styles.stepDot,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                  state.step >= 1 && { borderColor: colors.primary, backgroundColor: colors.primary },
+                  state.step > 1 && { borderColor: colors.success, backgroundColor: colors.success },
+                ]}
+              >
                 {state.step > 1 ? (
-                  <Feather name="check" size={10} color={COLORS.textInverse} />
+                  <Feather name="check" size={10} color="#FFFFFF" />
                 ) : (
-                  <View style={styles.innerDot} />
+                  <View style={[styles.innerDot, { backgroundColor: colors.primary }]} />
                 )}
               </View>
-              <Text style={[styles.stepLabel, state.step === 1 && styles.stepLabelActive]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  { color: colors.textMuted },
+                  state.step === 1 && [styles.stepLabelActive, { color: colors.primary }],
+                  state.step > 1 && { color: colors.textPrimary },
+                ]}
+              >
                 Generating SHA-256 cryptographic fingerprint
               </Text>
             </View>
 
             {/* Step 2 */}
             <View style={styles.stepRow}>
-              <View style={[styles.stepDot, state.step >= 2 && styles.stepDotActive, state.step > 2 && styles.stepDotDone]}>
+              <View
+                style={[
+                  styles.stepDot,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                  state.step >= 2 && { borderColor: colors.primary, backgroundColor: colors.primary },
+                  state.step > 2 && { borderColor: colors.success, backgroundColor: colors.success },
+                ]}
+              >
                 {state.step > 2 ? (
-                  <Feather name="check" size={10} color={COLORS.textInverse} />
+                  <Feather name="check" size={10} color="#FFFFFF" />
                 ) : (
-                  <View style={styles.innerDot} />
+                  <View style={[styles.innerDot, { backgroundColor: colors.primary }]} />
                 )}
               </View>
-              <Text style={[styles.stepLabel, state.step === 2 && styles.stepLabelActive]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  { color: colors.textMuted },
+                  state.step === 2 && [styles.stepLabelActive, { color: colors.primary }],
+                  state.step > 2 && { color: colors.textPrimary },
+                ]}
+              >
                 Encrypting & uploading to vault storage
               </Text>
             </View>
 
             {/* Step 3 */}
             <View style={styles.stepRow}>
-              <View style={[styles.stepDot, state.step >= 3 && styles.stepDotActive, state.step > 3 && styles.stepDotDone]}>
+              <View
+                style={[
+                  styles.stepDot,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                  state.step >= 3 && { borderColor: colors.primary, backgroundColor: colors.primary },
+                  state.step > 3 && { borderColor: colors.success, backgroundColor: colors.success },
+                ]}
+              >
                 {state.step > 3 ? (
-                  <Feather name="check" size={10} color={COLORS.textInverse} />
+                  <Feather name="check" size={10} color="#FFFFFF" />
                 ) : (
-                  <View style={styles.innerDot} />
+                  <View style={[styles.innerDot, { backgroundColor: colors.primary }]} />
                 )}
               </View>
-              <Text style={[styles.stepLabel, state.step === 3 && styles.stepLabelActive]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  { color: colors.textMuted },
+                  state.step === 3 && [styles.stepLabelActive, { color: colors.primary }],
+                  state.step > 3 && { color: colors.textPrimary },
+                ]}
+              >
                 Recording immutable integrity ledger entry
               </Text>
             </View>
           </View>
 
-          <Text style={styles.statusText}>{state.statusText}</Text>
+          <Text style={[styles.statusText, { color: colors.textMuted }]}>{state.statusText}</Text>
+
+          {/* Dismiss Done Button when Complete */}
+          {state.isComplete && onClose && (
+            <TouchableOpacity
+              style={[styles.doneButton, { backgroundColor: colors.success }]}
+              onPress={onClose}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -206,7 +282,7 @@ export function UploadProgressModal({ state }: UploadProgressModalProps) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.xl,
@@ -214,13 +290,11 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: 'rgba(15, 23, 42, 0.2)',
+    shadowColor: 'rgba(15, 23, 42, 0.25)',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 1,
     shadowRadius: 20,
@@ -243,53 +317,39 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconCircleComplete: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.success,
   },
   title: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
     marginBottom: 4,
     textAlign: 'center',
   },
   fileName: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     textAlign: 'center',
-    maxWidth: '90%',
   },
   progressBarContainer: {
     width: '100%',
     height: 6,
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 3,
+    borderRadius: RADIUS.full,
     overflow: 'hidden',
-    marginBottom: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    marginBottom: SPACING.md,
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: RADIUS.full,
   },
   stepsContainer: {
     width: '100%',
-    backgroundColor: COLORS.surfaceElevated,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
     gap: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   stepRow: {
     flexDirection: 'row',
@@ -301,38 +361,35 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  stepDotActive: {
-    borderColor: COLORS.primary,
-  },
-  stepDotDone: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.success,
   },
   innerDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.primary,
   },
   stepLabel: {
-    flex: 1,
     fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.medium,
+    flex: 1,
   },
   stepLabelActive: {
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontWeight: TYPOGRAPHY.bold,
   },
   statusText: {
     fontSize: 11,
-    color: COLORS.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  doneButton: {
+    marginTop: SPACING.md,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: RADIUS.full,
+  },
+  doneButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.bold,
   },
 });
