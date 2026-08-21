@@ -2,7 +2,7 @@
 // TrustLink — Clean, Professional Activity & Audit Trail Screen
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
 import { auditService, ExtendedAuditLog, AuditCategory } from '@/services/auditService';
@@ -43,10 +44,11 @@ export function ActivityScreen() {
     }
   };
 
-  useEffect(() => {
-    setLoading(true);
-    loadLogs(activeCategory);
-  }, [activeCategory]);
+  useFocusEffect(
+    useCallback(() => {
+      loadLogs(activeCategory);
+    }, [activeCategory])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

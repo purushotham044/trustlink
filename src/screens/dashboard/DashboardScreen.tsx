@@ -2,7 +2,7 @@
 // TrustLink — Professional Production Dashboard Screen (Responsive)
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
 import { useAuth } from '@/hooks/useAuth';
@@ -114,9 +114,11 @@ export function DashboardScreen() {
     }
   };
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [user]);
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [user])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

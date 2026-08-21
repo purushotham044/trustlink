@@ -3,7 +3,7 @@
 // Cross-Platform: Works seamlessly on Android (OPPO F23), iOS & Web
 // ============================================================
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   FlatList,
@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StackScreenProps } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { VaultStackParamList } from '@/navigation/VaultNavigator';
@@ -86,10 +87,11 @@ export function VaultScreen({ route, navigation }: Props) {
     }
   };
 
-  useEffect(() => {
-    setLoading(true);
-    loadData();
-  }, [folderId]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [folderId])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -194,7 +196,7 @@ export function VaultScreen({ route, navigation }: Props) {
       }
       setFolderModalVisible(false);
       setFolderInputText('');
-      loadData();
+      await loadData();
     } catch (err: any) {
       Alert.alert('Operation Failed', err.message || 'Could not save folder');
     } finally {
@@ -237,11 +239,13 @@ export function VaultScreen({ route, navigation }: Props) {
         }
       );
 
-      // Give user smooth visual confirmation before closing
+      // Instantly refresh vault list in background so the new file is immediately rendered
+      await loadData();
+
+      // Give smooth visual confirmation then close modal
       setTimeout(() => {
         setUploadProgress(prev => ({ ...prev, visible: false }));
-        loadData();
-      }, 1000);
+      }, 700);
     } catch (err: any) {
       setUploadProgress(prev => ({ ...prev, visible: false }));
       Alert.alert('Upload Notice', err.message || 'Could not complete file upload');
