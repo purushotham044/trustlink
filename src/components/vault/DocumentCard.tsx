@@ -5,7 +5,8 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 import { Document } from '@/types';
 
 interface DocumentCardProps {
@@ -14,6 +15,8 @@ interface DocumentCardProps {
 }
 
 export function DocumentCard({ document, onPress }: DocumentCardProps) {
+  const { colors } = useTheme();
+
   // Determine vector icon and color based on mime type
   const getFileIcon = () => {
     if (document.mime_type.includes('pdf')) {
@@ -29,9 +32,9 @@ export function DocumentCard({ document, onPress }: DocumentCardProps) {
       return <MaterialCommunityIcons name="file-excel-box" size={24} color="#10B981" />;
     }
     if (document.mime_type.includes('text')) {
-      return <Feather name="file-text" size={22} color="#94A3B8" />;
+      return <Feather name="file-text" size={22} color={colors.textMuted} />;
     }
-    return <Feather name="file" size={22} color={COLORS.primary} />;
+    return <Feather name="file" size={22} color={colors.primary} />;
   };
 
   const formattedSize = document.size > 1024 * 1024
@@ -49,41 +52,47 @@ export function DocumentCard({ document, onPress }: DocumentCardProps) {
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.iconContainer}>
+      <View style={[styles.iconContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
         {getFileIcon()}
       </View>
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
           {document.name}
         </Text>
-        <Text style={styles.meta}>
+        <Text style={[styles.metadata, { color: colors.textMuted }]}>
           {formattedSize} • {formattedDate}
         </Text>
       </View>
 
-      <View style={styles.statusContainer}>
-        {isVerified ? (
-          <View style={[styles.badge, styles.badgeVerified]}>
-            <Feather name="check-circle" size={11} color={COLORS.success} />
-            <Text style={[styles.badgeText, { color: COLORS.success }]}>Verified</Text>
-          </View>
-        ) : isFailed ? (
-          <View style={[styles.badge, styles.badgeFailed]}>
-            <Feather name="alert-triangle" size={11} color={COLORS.danger} />
-            <Text style={[styles.badgeText, { color: COLORS.danger }]}>Tampered</Text>
-          </View>
-        ) : (
-          <View style={[styles.badge, styles.badgePending]}>
-            <Feather name="clock" size={11} color={COLORS.warning} />
-            <Text style={[styles.badgeText, { color: COLORS.warning }]}>Pending</Text>
-          </View>
-        )}
-        <Feather name="chevron-right" size={16} color={COLORS.textMuted} style={styles.chevron} />
+      <View style={styles.rightSection}>
+        <View
+          style={[
+            styles.badge,
+            isVerified && { backgroundColor: colors.successMuted, borderColor: colors.success + '40' },
+            isFailed && { backgroundColor: colors.dangerMuted, borderColor: colors.danger + '40' },
+            !isVerified && !isFailed && { backgroundColor: colors.warningMuted, borderColor: colors.warning + '40' },
+          ]}
+        >
+          <Feather
+            name={isVerified ? 'shield' : isFailed ? 'alert-triangle' : 'clock'}
+            size={11}
+            color={isVerified ? colors.success : isFailed ? colors.danger : colors.warning}
+          />
+          <Text
+            style={[
+              styles.badgeText,
+              { color: isVerified ? colors.success : isFailed ? colors.danger : colors.warning },
+            ]}
+          >
+            {isVerified ? 'VERIFIED' : isFailed ? 'FAILED' : 'PENDING'}
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={16} color={colors.textMuted} />
       </View>
     </TouchableOpacity>
   );
@@ -93,67 +102,49 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.base,
-    backgroundColor: COLORS.surface,
+    padding: SPACING.md,
     borderRadius: RADIUS.lg,
-    marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    marginBottom: SPACING.sm,
   },
   iconContainer: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceElevated,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
   },
   info: {
     flex: 1,
-    marginRight: SPACING.sm,
+    justifyContent: 'center',
   },
   name: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textPrimary,
-    marginBottom: 3,
+    marginBottom: 2,
   },
-  meta: {
+  metadata: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
   },
-  statusContainer: {
+  rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.xs,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
     gap: 4,
-  },
-  badgeVerified: {
-    backgroundColor: COLORS.successMuted,
-  },
-  badgeFailed: {
-    backgroundColor: COLORS.dangerMuted,
-  },
-  badgePending: {
-    backgroundColor: COLORS.warningMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  chevron: {
-    marginLeft: SPACING.xs,
+    fontSize: 9,
+    fontWeight: TYPOGRAPHY.bold,
+    letterSpacing: 0.5,
   },
 });

@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 import { shareService, ExtendedDocumentShare } from '@/services/shareService';
 import { documentService } from '@/services/documentService';
 
@@ -24,6 +25,7 @@ type ShareTab = 'with_me' | 'by_me';
 
 export function ShareScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<ShareTab>('with_me');
   const [sharesWithMe, setSharesWithMe] = useState<ExtendedDocumentShare[]>([]);
   const [sharesByMe, setSharesByMe] = useState<ExtendedDocumentShare[]>([]);
@@ -58,8 +60,8 @@ export function ShareScreen() {
 
   const handleRevoke = (share: ExtendedDocumentShare) => {
     Alert.alert(
-      'Revoke Access',
-      `Are you sure you want to revoke access to "${share.document?.name || 'this document'}"? The recipient will immediately lose access.`,
+      'Revoke Share Access',
+      `Are you sure you want to revoke access to "${share.document?.name || 'this document'}" for ${share.shared_with_email || 'the recipient'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -67,11 +69,10 @@ export function ShareScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await shareService.revokeShare(share.id, share.document_id);
-              Alert.alert('Access Revoked', 'The recipient can no longer view or download this document.');
+              await shareService.revokeShare(share.id);
               loadShares();
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Could not revoke share');
+              Alert.alert('Error', err.message || 'Could not revoke share.');
             }
           },
         },
@@ -80,22 +81,27 @@ export function ShareScreen() {
   };
 
   const handleDownloadShared = async (share: ExtendedDocumentShare) => {
-    if (!share.document) return;
+    if (!share.document) {
+      Alert.alert('Error', 'Document metadata unavailable');
+      return;
+    }
+
     if (share.permission === 'VIEW') {
-      Alert.alert('View Only Permission', 'You have VIEW ONLY access for this document. Downloading is restricted by the document owner.');
+      Alert.alert('View Only', 'This document is shared with View-Only permission. Direct file download is restricted by the owner.');
       return;
     }
 
     try {
       setDownloadingId(share.id);
       const uri = await documentService.downloadDocument(share.document);
+      
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { UTI: share.document.mime_type });
       } else {
-        Alert.alert('Downloaded', `Saved to: ${uri}`);
+        Alert.alert('Downloaded', `File saved to: ${uri}`);
       }
     } catch (err: any) {
-      Alert.alert('Download Failed', err.message || 'Could not download shared file');
+      Alert.alert('Download Failed', err.message || 'Could not download shared document');
     } finally {
       setDownloadingId(null);
     }
@@ -106,51 +112,51 @@ export function ShareScreen() {
     const isExpired = item.expires_at && new Date(item.expires_at).getTime() < Date.now();
 
     return (
-      <View style={[styles.card, isRevoked && styles.cardRevoked]}>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, isRevoked && { opacity: 0.55 }]}>
         <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-            <MaterialCommunityIcons name="file-document-outline" size={22} color={COLORS.primary} />
+          <View style={[styles.iconContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
+            <MaterialCommunityIcons name="file-document-outline" size={22} color={colors.primary} />
           </View>
           <View style={styles.docInfo}>
-            <Text style={styles.docTitle} numberOfLines={1}>
+            <Text style={[styles.docTitle, { color: colors.textPrimary }]} numberOfLines={1}>
               {item.document?.name || 'Document'}
             </Text>
-            <Text style={styles.docMeta}>
+            <Text style={[styles.docMeta, { color: colors.textMuted }]}>
               {item.document ? `${Math.round(item.document.size / 1024)} KB` : 'Shared document'} • {new Date(item.created_at).toLocaleDateString()}
             </Text>
           </View>
 
           <View style={[
             styles.permBadge,
-            item.permission === 'DOWNLOAD' ? styles.permDownload : styles.permView,
+            item.permission === 'DOWNLOAD' ? { backgroundColor: colors.primaryMuted } : { backgroundColor: colors.surfaceHighlight },
           ]}>
             <Text style={[
               styles.permText,
-              item.permission === 'DOWNLOAD' ? styles.permDownloadText : styles.permViewText,
+              item.permission === 'DOWNLOAD' ? { color: colors.primary } : { color: colors.textMuted },
             ]}>
               {item.permission === 'DOWNLOAD' ? 'DOWNLOAD' : 'VIEW ONLY'}
             </Text>
           </View>
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
         <View style={styles.cardFooter}>
           <View style={styles.statusCol}>
             {isRevoked ? (
               <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: COLORS.danger }]} />
-                <Text style={styles.statusRevoked}>Access Revoked</Text>
+                <View style={[styles.statusDot, { backgroundColor: colors.danger }]} />
+                <Text style={[styles.statusRevoked, { color: colors.danger }]}>Access Revoked</Text>
               </View>
             ) : isExpired ? (
               <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: COLORS.warning }]} />
-                <Text style={styles.statusExpired}>Expired</Text>
+                <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
+                <Text style={[styles.statusExpired, { color: colors.warning }]}>Expired</Text>
               </View>
             ) : (
               <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
-                <Text style={styles.statusActive}>
+                <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                <Text style={[styles.statusActive, { color: colors.success }]}>
                   Active {item.expires_at ? `(Expires ${new Date(item.expires_at).toLocaleDateString()})` : '(Permanent)'}
                 </Text>
               </View>
@@ -159,25 +165,29 @@ export function ShareScreen() {
 
           {activeTab === 'by_me' && !isRevoked && (
             <TouchableOpacity
-              style={styles.revokeButton}
+              style={[styles.revokeButton, { borderColor: colors.danger + '50' }]}
               onPress={() => handleRevoke(item)}
               activeOpacity={0.7}
             >
-              <Text style={styles.revokeText}>Revoke</Text>
+              <Text style={[styles.revokeText, { color: colors.danger }]}>Revoke</Text>
             </TouchableOpacity>
           )}
 
           {activeTab === 'with_me' && !isRevoked && !isExpired && (
             <TouchableOpacity
-              style={[styles.downloadButton, item.permission === 'VIEW' && styles.disabledButton]}
+              style={[
+                styles.downloadButton,
+                { backgroundColor: colors.primary },
+                item.permission === 'VIEW' && { backgroundColor: colors.surfaceHighlight },
+              ]}
               onPress={() => handleDownloadShared(item)}
               disabled={downloadingId === item.id || item.permission === 'VIEW'}
               activeOpacity={0.7}
             >
               {downloadingId === item.id ? (
-                <ActivityIndicator size="small" color={COLORS.textInverse} />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.downloadText}>
+                <Text style={[styles.downloadText, item.permission === 'VIEW' ? { color: colors.textMuted } : { color: '#FFFFFF' }]}>
                   {item.permission === 'DOWNLOAD' ? 'Download' : 'View Only'}
                 </Text>
               )}
@@ -191,53 +201,86 @@ export function ShareScreen() {
   const currentList = activeTab === 'with_me' ? sharesWithMe : sharesByMe;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Segmented Tab Header */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'with_me' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'with_me' && [styles.activeTab, { backgroundColor: colors.surface }]]}
           onPress={() => setActiveTab('with_me')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'with_me' && styles.activeTabText]}>
+          <Feather
+            name="inbox"
+            size={16}
+            color={activeTab === 'with_me' ? colors.primary : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textMuted },
+              activeTab === 'with_me' && [styles.activeTabText, { color: colors.primary }],
+            ]}
+          >
             Shared With Me ({sharesWithMe.length})
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'by_me' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'by_me' && [styles.activeTab, { backgroundColor: colors.surface }]]}
           onPress={() => setActiveTab('by_me')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'by_me' && styles.activeTabText]}>
+          <Feather
+            name="send"
+            size={16}
+            color={activeTab === 'by_me' ? colors.primary : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textMuted },
+              activeTab === 'by_me' && [styles.activeTabText, { color: colors.primary }],
+            ]}
+          >
             Shared By Me ({sharesByMe.length})
           </Text>
         </TouchableOpacity>
       </View>
 
+      {/* Share List */}
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
           data={currentList}
           keyExtractor={(item) => item.id}
           renderItem={renderShareItem}
-          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Feather name="share-2" size={44} color={COLORS.textMuted} style={styles.emptyIcon} />
-              <Text style={styles.emptyTitle}>
-                {activeTab === 'with_me' ? 'No documents shared with you yet' : 'No active shares created'}
+              <Feather
+                name={activeTab === 'with_me' ? 'inbox' : 'send'}
+                size={48}
+                color={colors.textMuted}
+                style={styles.emptyIcon}
+              />
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+                {activeTab === 'with_me' ? 'No incoming shares' : 'No documents shared yet'}
               </Text>
-              <Text style={styles.emptySubtitle}>
+              <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
                 {activeTab === 'with_me'
-                  ? 'When colleagues grant you access to files, they will appear here with cryptographic integrity verification.'
-                  : 'Open any document in your vault and tap "Share via Apps" or "Grant In-App Access" to share files securely.'}
+                  ? 'When colleagues or clients share cryptographic documents with you, they will appear here.'
+                  : 'You can grant secure, time-bounded access to any vault document from its details page.'}
               </Text>
             </View>
           }
@@ -250,55 +293,51 @@ export function ShareScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    padding: 4,
-    marginHorizontal: SPACING.md,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.md,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: SPACING.sm + 2,
-    alignItems: 'center',
-    borderRadius: RADIUS.md,
-  },
-  activeTab: {
-    backgroundColor: COLORS.surfaceElevated,
-  },
-  tabText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.medium,
-    color: COLORS.textMuted,
-  },
-  activeTabText: {
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.semibold,
-  },
-  list: {
-    paddingHorizontal: SPACING.md,
-  },
-  center: {
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: SPACING.md,
+    marginVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    padding: 4,
+    borderWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: RADIUS.sm,
+  },
+  activeTab: {
+    shadowColor: 'rgba(15, 23, 42, 0.06)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.medium,
+  },
+  activeTabText: {
+    fontWeight: TYPOGRAPHY.bold,
+  },
+  list: {
+    padding: SPACING.md,
+  },
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardRevoked: {
-    opacity: 0.5,
+    marginBottom: SPACING.sm,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -308,53 +347,35 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceElevated,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
   },
   docInfo: {
     flex: 1,
-    marginRight: SPACING.sm,
   },
   docTitle: {
     fontSize: TYPOGRAPHY.sm,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.bold,
     marginBottom: 2,
   },
   docMeta: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
   },
   permBadge: {
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: RADIUS.sm,
   },
-  permView: {
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
-  },
-  permDownload: {
-    backgroundColor: COLORS.primaryMuted,
-  },
   permText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: TYPOGRAPHY.bold,
-    letterSpacing: 0.4,
-  },
-  permViewText: {
-    color: COLORS.textSecondary,
-  },
-  permDownloadText: {
-    color: COLORS.primary,
+    letterSpacing: 0.5,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.md,
+    marginVertical: SPACING.sm,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -370,52 +391,40 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   statusActive: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.success,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.medium,
   },
   statusExpired: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.warning,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.medium,
   },
   statusRevoked: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.danger,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.medium,
   },
   revokeButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: COLORS.danger,
   },
   revokeText: {
-    color: COLORS.danger,
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.bold,
   },
   downloadButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: RADIUS.sm,
   },
-  disabledButton: {
-    backgroundColor: COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
   downloadText: {
-    color: COLORS.textInverse,
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.bold,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -430,13 +439,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
     marginBottom: 4,
+    textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
+    fontSize: TYPOGRAPHY.sm,
     textAlign: 'center',
     lineHeight: 18,
   },

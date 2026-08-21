@@ -5,7 +5,8 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 import { Folder } from '@/types';
 
 interface FolderCardProps {
@@ -15,18 +16,20 @@ interface FolderCardProps {
 }
 
 export function FolderCard({ folder, onPress, onOptionsPress }: FolderCardProps) {
+  const { colors } = useTheme();
+
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.iconContainer}>
-        <Feather name="folder" size={20} color={COLORS.primary} />
+      <View style={[styles.iconContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
+        <Feather name="folder" size={20} color={colors.primary} />
       </View>
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
           {folder.name}
         </Text>
       </View>
@@ -38,11 +41,11 @@ export function FolderCard({ folder, onPress, onOptionsPress }: FolderCardProps)
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           activeOpacity={0.6}
         >
-          <Feather name="more-vertical" size={18} color={COLORS.textMuted} />
+          <Feather name="more-vertical" size={18} color={colors.textMuted} />
         </TouchableOpacity>
       )}
 
-      <Feather name="chevron-right" size={18} color={COLORS.textMuted} />
+      <Feather name="chevron-right" size={18} color={colors.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -53,34 +56,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.base,
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   iconContainer: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
   },
   info: {
     flex: 1,
+    justifyContent: 'center',
   },
   name: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textPrimary,
   },
   optionsButton: {
-    paddingHorizontal: SPACING.xs,
-    paddingVertical: SPACING.xs,
-    marginRight: SPACING.xs,
+    padding: 6,
+    marginRight: 4,
   },
 });

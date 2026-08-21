@@ -24,7 +24,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { VaultStackParamList } from '@/navigation/VaultNavigator';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 import { folderService } from '@/services/folderService';
 import { documentService } from '@/services/documentService';
 import { Folder, Document as VaultDocument } from '@/types';
@@ -41,6 +42,7 @@ type ListItem =
 
 export function VaultScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { folderId, folderName } = route.params;
   const isInsideFolder = Boolean(folderId);
 
@@ -59,28 +61,31 @@ export function VaultScreen({ route, navigation }: Props) {
     isComplete: false,
   });
 
-  // Folder Modal State (Create / Rename)
-  const [folderModalVisible, setFolderModalVisible] = useState(false);
-  const [folderModalMode, setFolderModalMode] = useState<'create' | 'rename'>('create');
-  const [targetFolder, setTargetFolder] = useState<Folder | null>(null);
-  const [folderInputText, setFolderInputText] = useState('');
-  const [savingFolder, setSavingFolder] = useState(false);
+  // Modal states for New Folder and Rename Folder
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
-  const loadData = async () => {
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState<Folder | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  const loadVaultContents = async () => {
     try {
-      const [folders, documents] = await Promise.all([
-        isInsideFolder ? Promise.resolve([]) : folderService.getFolders(null),
+      const [foldersData, documentsData] = await Promise.all([
+        folderService.getFolders(folderId),
         documentService.getDocuments(folderId),
       ]);
 
       const combined: ListItem[] = [
-        ...folders.map(f => ({ type: 'folder' as const, data: f })),
-        ...documents.map(d => ({ type: 'document' as const, data: d })),
+        ...foldersData.map(f => ({ type: 'folder' as const, data: f })),
+        ...documentsData.map(d => ({ type: 'document' as const, data: d })),
       ];
-      
+
       setItems(combined);
     } catch (err: any) {
-      Alert.alert('Vault Notice', err.message || 'Could not refresh vault contents.');
+      console.error('[VaultScreen] load error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -89,163 +94,176 @@ export function VaultScreen({ route, navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadVaultContents();
     }, [folderId])
   );
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    loadVaultContents();
   };
 
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return items;
-    const q = searchQuery.toLowerCase();
-    return items.filter(item => item.data.name.toLowerCase().includes(q));
+    const q = searchQuery.toLowerCase().trim();
+    return items.filter(item => {
+      if (item.type === 'folder') return item.data.name.toLowerCase().includes(q);
+      return item.data.name.toLowerCase().includes(q);
+    });
   }, [items, searchQuery]);
 
   const handleOpenCreateFolderModal = () => {
-    setFolderModalMode('create');
-    setTargetFolder(null);
-    setFolderInputText('');
-    setFolderModalVisible(true);
+    setNewFolderName('');
+    setCreateModalVisible(true);
   };
 
-  const handleOpenRenameFolderModal = (folder: Folder) => {
-    setFolderModalMode('rename');
-    setTargetFolder(folder);
-    setFolderInputText(folder.name);
-    setFolderModalVisible(true);
-  };
-
-  const handleFolderOptions = (folder: Folder) => {
-    Alert.alert(
-      `Folder: ${folder.name}`,
-      'Manage this vault folder',
-      [
-        {
-          text: 'Rename Folder',
-          onPress: () => handleOpenRenameFolderModal(folder),
-        },
-        {
-          text: 'Delete Folder (Keep Files in Main Vault)',
-          onPress: () => {
-            Alert.alert(
-              'Keep Files & Delete Folder',
-              `All documents inside "${folder.name}" will be moved safely to your main vault. Only the folder will be removed.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Move Files & Delete Folder',
-                  onPress: async () => {
-                    try {
-                      await folderService.deleteFolderPreservingFiles(folder.id);
-                      loadData();
-                    } catch (err: any) {
-                      Alert.alert('Error', err.message || 'Could not delete folder');
-                    }
-                  }
-                }
-              ]
-            );
-          }
-        },
-        {
-          text: 'Delete Folder and All Files',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Delete Everything',
-              `Permanently delete "${folder.name}" and all documents stored inside it?`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete Everything',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await folderService.deleteFolder(folder.id);
-                      loadData();
-                    } catch (err: any) {
-                      Alert.alert('Error', err.message || 'Could not delete folder');
-                    }
-                  }
-                }
-              ]
-            );
-          }
-        },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
-  };
-
-  const handleConfirmFolderSubmit = async () => {
-    const trimmed = folderInputText.trim();
+  const handleCreateFolder = async () => {
+    const trimmed = newFolderName.trim();
     if (!trimmed) {
-      Alert.alert('Required', 'Please enter a name for the folder.');
+      Alert.alert('Folder Name Required', 'Please enter a name for your new folder.');
       return;
     }
 
     try {
-      setSavingFolder(true);
-      if (folderModalMode === 'create') {
-        await folderService.createFolder(trimmed, null);
-      } else if (targetFolder) {
-        await folderService.renameFolder(targetFolder.id, trimmed);
-      }
-      setFolderModalVisible(false);
-      setFolderInputText('');
-      await loadData();
+      setCreatingFolder(true);
+      await folderService.createFolder(trimmed, folderId);
+      setCreateModalVisible(false);
+      setNewFolderName('');
+      loadVaultContents();
     } catch (err: any) {
-      Alert.alert('Operation Failed', err.message || 'Could not save folder');
+      Alert.alert('Could Not Create Folder', err.message || 'An error occurred.');
     } finally {
-      setSavingFolder(false);
+      setCreatingFolder(false);
+    }
+  };
+
+  const handleFolderOptions = (folder: Folder) => {
+    Alert.alert(
+      folder.name,
+      'Choose an action for this folder:',
+      [
+        {
+          text: 'Rename Folder',
+          onPress: () => {
+            setRenamingFolder(folder);
+            setEditFolderName(folder.name);
+            setRenameModalVisible(true);
+          },
+        },
+        {
+          text: 'Delete (Keep Files in Vault)',
+          onPress: () => confirmDeleteFolder(folder, false),
+        },
+        {
+          text: 'Delete Folder & All Files Inside',
+          style: 'destructive',
+          onPress: () => confirmDeleteFolder(folder, true),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const confirmDeleteFolder = (folder: Folder, cascadeDeleteFiles: boolean) => {
+    const title = cascadeDeleteFiles ? 'Delete Folder & All Contained Files' : 'Delete Folder';
+    const message = cascadeDeleteFiles
+      ? `Are you sure you want to permanently delete "${folder.name}" AND all files inside it? This cannot be undone.`
+      : `Delete folder "${folder.name}"? Files inside will be moved safely to your root vault.`;
+
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await folderService.deleteFolder(folder.id, cascadeDeleteFiles);
+              loadVaultContents();
+            } catch (err: any) {
+              Alert.alert('Delete Failed', err.message || 'Could not delete folder.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRenameFolder = async () => {
+    if (!renamingFolder) return;
+    const trimmed = editFolderName.trim();
+    if (!trimmed) {
+      Alert.alert('Folder Name Required', 'Please enter a valid folder name.');
+      return;
+    }
+
+    try {
+      setIsRenaming(true);
+      await folderService.renameFolder(renamingFolder.id, trimmed);
+      setRenameModalVisible(false);
+      setRenamingFolder(null);
+      setEditFolderName('');
+      loadVaultContents();
+    } catch (err: any) {
+      Alert.alert('Rename Failed', err.message || 'Could not rename folder.');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
   const handleUploadFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
         copyToCacheDirectory: true,
       });
 
-      if (result.canceled) return;
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
 
-      const file = result.assets[0];
+      const asset = result.assets[0];
       setUploading(true);
 
-      // Start upload animation overlay
       setUploadProgress({
         visible: true,
-        fileName: file.name,
+        fileName: asset.name,
         step: 1,
-        statusText: 'Computing SHA-256 digital fingerprint...',
+        statusText: 'Reading file binary & computing SHA-256 fingerprint...',
         isComplete: false,
       });
 
       await documentService.uploadDocument(
-        file.uri,
-        file.name,
-        file.mimeType || 'application/octet-stream',
+        {
+          uri: asset.uri,
+          name: asset.name,
+          mimeType: asset.mimeType,
+          size: asset.size ?? 0,
+        },
         folderId,
-        (step, statusText) => {
+        (progress) => {
           setUploadProgress(prev => ({
             ...prev,
-            step,
-            statusText,
-            isComplete: step >= 4,
+            step: progress.step,
+            statusText: progress.statusText,
           }));
         }
       );
 
-      // Instantly refresh vault list in background so the new file is immediately rendered
-      await loadData();
+      setUploadProgress(prev => ({
+        ...prev,
+        step: 4,
+        statusText: 'Document vaulted & secured successfully!',
+        isComplete: true,
+      }));
 
-      // Give smooth visual confirmation then close modal
-      setTimeout(() => {
-        setUploadProgress(prev => ({ ...prev, visible: false }));
-      }, 700);
+      loadVaultContents();
     } catch (err: any) {
       setUploadProgress(prev => ({ ...prev, visible: false }));
       Alert.alert('Upload Notice', err.message || 'Could not complete file upload');
@@ -277,25 +295,25 @@ export function VaultScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Search and Action Bar */}
       <View style={styles.topBar}>
         {isInsideFolder && (
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
           >
-            <Feather name="arrow-left" size={20} color={COLORS.primary} />
+            <Feather name="arrow-left" size={20} color={colors.primary} />
           </TouchableOpacity>
         )}
 
-        <View style={styles.searchContainer}>
-          <Feather name="search" size={16} color={COLORS.textMuted} style={styles.searchIcon} />
+        <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Feather name="search" size={16} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
             placeholder={isInsideFolder ? `Search in ${folderName}...` : "Search vault files..."}
-            placeholderTextColor={COLORS.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
@@ -303,7 +321,7 @@ export function VaultScreen({ route, navigation }: Props) {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Feather name="x" size={16} color={COLORS.textMuted} />
+              <Feather name="x" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -312,24 +330,24 @@ export function VaultScreen({ route, navigation }: Props) {
           {/* Only show "New Folder" at Root Level */}
           {!isInsideFolder && (
             <TouchableOpacity
-              style={styles.actionIconButton}
+              style={[styles.actionIconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleOpenCreateFolderModal}
               activeOpacity={0.7}
             >
-              <Feather name="folder-plus" size={18} color={COLORS.primary} />
+              <Feather name="folder-plus" size={18} color={colors.primary} />
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.actionIconButton, styles.uploadButton]}
+            style={[styles.actionIconButton, styles.uploadButton, { backgroundColor: colors.primary, borderColor: colors.primary }]}
             onPress={handleUploadFile}
             disabled={uploading}
             activeOpacity={0.7}
           >
             {uploading ? (
-              <ActivityIndicator size="small" color={COLORS.textInverse} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Feather name="upload" size={18} color={COLORS.textInverse} />
+              <Feather name="upload" size={18} color="#FFFFFF" />
             )}
           </TouchableOpacity>
         </View>
@@ -337,121 +355,119 @@ export function VaultScreen({ route, navigation }: Props) {
 
       {/* Breadcrumb path if inside folder */}
       {isInsideFolder && (
-        <View style={styles.breadcrumb}>
+        <View style={[styles.breadcrumb, { backgroundColor: colors.surfaceHighlight, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => navigation.popToTop()}>
-            <Text style={styles.breadcrumbRoot}>Vault Root</Text>
+            <Text style={[styles.breadcrumbRoot, { color: colors.primary }]}>Vault Root</Text>
           </TouchableOpacity>
-          <Text style={styles.breadcrumbDivider}> › </Text>
-          <Text style={styles.breadcrumbCurrent} numberOfLines={1}>{folderName}</Text>
+          <Text style={[styles.breadcrumbDivider, { color: colors.textMuted }]}> › </Text>
+          <Text style={[styles.breadcrumbCurrent, { color: colors.textSecondary }]} numberOfLines={1}>{folderName}</Text>
         </View>
       )}
 
       {/* Main List */}
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
           data={filteredItems}
           keyExtractor={(item) => `${item.type}-${item.data.id}`}
           renderItem={renderItem}
-          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom: insets.bottom + 80 }
+          ]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Feather name={isInsideFolder ? "file" : "folder"} size={48} color={COLORS.textMuted} style={styles.emptyIcon} />
-              <Text style={styles.emptyTitle}>
-                {searchQuery
-                  ? 'No matching files found'
-                  : isInsideFolder
-                  ? `No files in "${folderName}"`
-                  : 'Your Vault is empty'}
+              <Feather name="folder" size={48} color={colors.textMuted} style={styles.emptyIcon} />
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+                {searchQuery ? 'No matching vault items' : isInsideFolder ? 'Folder is empty' : 'Your vault is empty'}
               </Text>
-              <Text style={styles.emptySubtitle}>
+              <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
                 {searchQuery
-                  ? 'Try searching with a different term.'
-                  : isInsideFolder
-                  ? 'Upload documents to securely store them inside this folder.'
-                  : 'Create a folder or upload documents directly into your secure vault.'}
+                  ? 'Try searching with a different filename or extension'
+                  : 'Upload documents or create folders to organize your cryptographic records.'}
               </Text>
-
-              <View style={styles.emptyActions}>
-                {!isInsideFolder && (
+              {!searchQuery && (
+                <View style={styles.emptyActions}>
+                  {!isInsideFolder && (
+                    <TouchableOpacity
+                      style={[styles.emptyActionButton, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                      onPress={handleOpenCreateFolderModal}
+                    >
+                      <Feather name="folder-plus" size={16} color={colors.primary} />
+                      <Text style={[styles.emptyActionText, { color: colors.primary }]}>New Folder</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
-                    style={styles.emptyActionButton}
-                    onPress={handleOpenCreateFolderModal}
+                    style={[styles.emptyActionButton, styles.emptyUploadButton, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                    onPress={handleUploadFile}
                   >
-                    <Feather name="folder-plus" size={14} color={COLORS.primary} />
-                    <Text style={styles.emptyActionText}>New Folder</Text>
+                    <Feather name="upload" size={16} color="#FFFFFF" />
+                    <Text style={[styles.emptyActionText, { color: '#FFFFFF' }]}>Upload Document</Text>
                   </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.emptyActionButton, styles.emptyUploadButton]}
-                  onPress={handleUploadFile}
-                >
-                  <Feather name="upload" size={14} color={COLORS.textInverse} />
-                  <Text style={[styles.emptyActionText, { color: COLORS.textInverse }]}>Upload File</Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+              )}
             </View>
           }
         />
       )}
 
-      {/* Cross-Platform Folder Modal (Create & Rename) */}
+      {/* New Folder Modal */}
       <Modal
-        visible={folderModalVisible}
+        visible={createModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setFolderModalVisible(false)}
+        onRequestClose={() => setCreateModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
+        <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
         >
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
-              <View style={styles.modalIconBox}>
-                <Feather name={folderModalMode === 'create' ? "folder-plus" : "edit-2"} size={20} color={COLORS.primary} />
+              <View style={[styles.modalIconBox, { backgroundColor: colors.primaryMuted }]}>
+                <Feather name="folder-plus" size={22} color={colors.primary} />
               </View>
               <View style={styles.modalHeaderInfo}>
-                <Text style={styles.modalTitle}>
-                  {folderModalMode === 'create' ? 'Create New Folder' : 'Rename Folder'}
-                </Text>
-                <Text style={styles.modalSubtitle}>Organize documents inside your secure vault</Text>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Create New Folder</Text>
+                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>Organize your cryptographic documents</Text>
               </View>
             </View>
 
             <TextInput
-              style={styles.folderInput}
-              placeholder="e.g. Legal Documents, Invoices, Tax"
-              placeholderTextColor={COLORS.textMuted}
-              value={folderInputText}
-              onChangeText={setFolderInputText}
+              style={[styles.folderInput, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.textPrimary }]}
+              placeholder="e.g. Legal Contracts, Invoices 2026"
+              placeholderTextColor={colors.textMuted}
+              value={newFolderName}
+              onChangeText={setNewFolderName}
               autoFocus={true}
               autoCapitalize="words"
-              returnKeyType="done"
-              onSubmitEditing={handleConfirmFolderSubmit}
+              maxLength={60}
             />
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={() => setFolderModalVisible(false)}
-                disabled={savingFolder}
+                onPress={() => setCreateModalVisible(false)}
+                disabled={creatingFolder}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.textMuted }]}>Cancel</Text>
               </TouchableOpacity>
-
+              
               <Button
-                label={savingFolder ? 'Saving...' : folderModalMode === 'create' ? 'Create Folder' : 'Rename'}
-                onPress={handleConfirmFolderSubmit}
-                disabled={savingFolder || !folderInputText.trim()}
-                variant="primary"
+                label={creatingFolder ? 'Creating...' : 'Create Folder'}
+                onPress={handleCreateFolder}
+                disabled={creatingFolder}
                 style={styles.createButton}
               />
             </View>
@@ -459,8 +475,64 @@ export function VaultScreen({ route, navigation }: Props) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Live Upload Progress & Animation Modal */}
-      <UploadProgressModal state={uploadProgress} />
+      {/* Rename Folder Modal */}
+      <Modal
+        visible={renameModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRenameModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconBox, { backgroundColor: colors.primaryMuted }]}>
+                <Feather name="edit-2" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.modalHeaderInfo}>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Rename Folder</Text>
+                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>Enter a new name for this folder</Text>
+              </View>
+            </View>
+
+            <TextInput
+              style={[styles.folderInput, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.textPrimary }]}
+              placeholder="Folder Name"
+              placeholderTextColor={colors.textMuted}
+              value={editFolderName}
+              onChangeText={setEditFolderName}
+              autoFocus={true}
+              autoCapitalize="words"
+              maxLength={60}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setRenameModalVisible(false)}
+                disabled={isRenaming}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.textMuted }]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <Button
+                label={isRenaming ? 'Saving...' : 'Save Name'}
+                onPress={handleRenameFolder}
+                disabled={isRenaming}
+                style={styles.createButton}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Executive Upload Progress Animation Modal */}
+      <UploadProgressModal
+        state={uploadProgress}
+        onClose={() => setUploadProgress(prev => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -468,9 +540,8 @@ export function VaultScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
-  center: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -481,17 +552,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     gap: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surface,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
-    borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -499,19 +565,16 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     height: 40,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   searchIcon: {
     marginRight: SPACING.xs,
   },
   searchInput: {
     flex: 1,
-    color: COLORS.textPrimary,
     fontSize: TYPOGRAPHY.sm,
     paddingVertical: 0,
   },
@@ -523,37 +586,27 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
-    borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  uploadButton: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
+  uploadButton: {},
   breadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.surfaceElevated,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   breadcrumbRoot: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.primary,
     fontWeight: TYPOGRAPHY.semibold,
   },
   breadcrumbDivider: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
   },
   breadcrumbCurrent: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.bold,
     flexShrink: 1,
   },
@@ -571,14 +624,12 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   emptyTitle: {
-    color: COLORS.textPrimary,
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
     marginBottom: 4,
     textAlign: 'center',
   },
   emptySubtitle: {
-    color: COLORS.textMuted,
     fontSize: TYPOGRAPHY.sm,
     textAlign: 'center',
     lineHeight: 18,
@@ -596,16 +647,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.surface,
   },
-  emptyUploadButton: {
-    backgroundColor: COLORS.primary,
-  },
+  emptyUploadButton: {},
   emptyActionText: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.primary,
   },
   modalOverlay: {
     flex: 1,
@@ -617,16 +663,9 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: 'rgba(15, 23, 42, 0.15)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -638,7 +677,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -648,21 +686,16 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
   },
   modalSubtitle: {
     fontSize: 11,
-    color: COLORS.textMuted,
     marginTop: 2,
   },
   folderInput: {
-    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 1,
-    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
-    color: COLORS.textPrimary,
     fontSize: TYPOGRAPHY.sm,
     marginBottom: SPACING.lg,
   },
@@ -680,7 +713,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: TYPOGRAPHY.medium,
-    color: COLORS.textMuted,
   },
   createButton: {
     minWidth: 120,

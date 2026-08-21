@@ -21,7 +21,7 @@ import { HowItWorksModal } from '@/components/common/HowItWorksModal';
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile, signOut } = useAuth();
-  const { theme, isDark, colors, setTheme } = useTheme();
+  const { theme, isDark, colors, toggleTheme } = useTheme();
   const [explainerVisible, setExplainerVisible] = useState(false);
 
   const displayName = profile?.full_name ?? user?.email?.split('@')[0] ?? 'User';
@@ -50,41 +50,32 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {/* Theme Appearance Selector Card */}
+      {/* Sleek Compact Appearance Card */}
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.cardHeader}>
-          <Feather name="sun" size={14} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Appearance Theme</Text>
+          <Feather name="sliders" size={14} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Appearance & Theme</Text>
         </View>
 
-        <View style={styles.themeSelectorRow}>
-          <TouchableOpacity
-            style={[
-              styles.themeOptionBtn,
-              { backgroundColor: colors.surfaceHighlight, borderColor: colors.border },
-              !isDark && [styles.themeActiveBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '15' }],
-            ]}
-            onPress={() => setTheme('light')}
-            activeOpacity={0.75}
-          >
-            <Feather name="sun" size={18} color={!isDark ? colors.primary : colors.textMuted} />
-            <Text style={[styles.themeOptionText, { color: !isDark ? colors.primary : colors.textMuted }]}>
-              Light Mode
+        <View style={styles.themeRow}>
+          <View style={styles.themeInfo}>
+            <Feather name={isDark ? 'moon' : 'sun'} size={18} color={isDark ? '#F59E0B' : colors.primary} />
+            <Text style={[styles.themeModeTitle, { color: colors.textPrimary }]}>
+              {isDark ? 'Dark Mode (Cyber Obsidian)' : 'Light Mode (Executive Slate)'}
             </Text>
-          </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={[
-              styles.themeOptionBtn,
-              { backgroundColor: colors.surfaceHighlight, borderColor: colors.border },
-              isDark && [styles.themeActiveBtn, { borderColor: colors.primary, backgroundColor: colors.primary + '15' }],
+              styles.compactToggleBtn,
+              { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary + '50' },
             ]}
-            onPress={() => setTheme('dark')}
+            onPress={toggleTheme}
             activeOpacity={0.75}
           >
-            <Feather name="moon" size={18} color={isDark ? colors.primary : colors.textMuted} />
-            <Text style={[styles.themeOptionText, { color: isDark ? colors.primary : colors.textMuted }]}>
-              Dark Mode
+            <Feather name={isDark ? 'sun' : 'moon'} size={14} color={colors.primary} />
+            <Text style={[styles.compactToggleText, { color: colors.primary }]}>
+              {isDark ? 'Light' : 'Dark'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -226,26 +217,33 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  themeSelectorRow: {
+  themeRow: {
     flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: 4,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
   },
-  themeOptionBtn: {
-    flex: 1,
+  themeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: RADIUS.md,
+    gap: SPACING.sm,
+    flex: 1,
+  },
+  themeModeTitle: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
+  },
+  compactToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
     borderWidth: 1,
   },
-  themeActiveBtn: {
-    borderWidth: 1.5,
-  },
-  themeOptionText: {
-    fontSize: 12,
+  compactToggleText: {
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
   },
   guideCard: {

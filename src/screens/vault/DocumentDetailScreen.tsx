@@ -21,7 +21,8 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { VaultStackParamList } from '@/navigation/VaultNavigator';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 import { documentService } from '@/services/documentService';
 import { integrityService } from '@/services/integrityService';
 import { blockchainService } from '@/services/blockchainService';
@@ -35,6 +36,7 @@ type ExpiryOption = '1h' | '24h' | '7d' | 'never';
 
 export function DocumentDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { document: initialDocument } = route.params;
   const [document, setDocument] = useState(initialDocument);
   const [proof, setProof] = useState<BlockchainProof | null>(null);
@@ -129,7 +131,6 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
       setVerifying(true);
       const isVerified = await integrityService.verifyDocument(document);
       
-      // Also check against blockchain record
       const dualResult = await blockchainService.verifyDualIntegrity(
         document.name,
         document.current_hash || '',
@@ -279,15 +280,15 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
   const getStatusColor = () => {
     switch (document.integrity_status) {
-      case 'VERIFIED': return COLORS.success;
-      case 'FAILED': return COLORS.danger;
-      default: return COLORS.warning;
+      case 'VERIFIED': return colors.success;
+      case 'FAILED': return colors.danger;
+      default: return colors.warning;
     }
   };
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[
         styles.content,
         { paddingBottom: Math.max(insets.bottom, 24) + SPACING.xl }
@@ -296,11 +297,11 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     >
       {/* Header Info */}
       <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Feather name="file-text" size={32} color={COLORS.primary} />
+        <View style={[styles.iconContainer, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary + '30' }]}>
+          <Feather name="file-text" size={32} color={colors.primary} />
         </View>
-        <Text style={styles.docName} numberOfLines={2}>{document.name}</Text>
-        <Text style={styles.docMeta}>
+        <Text style={[styles.docName, { color: colors.textPrimary }]} numberOfLines={2}>{document.name}</Text>
+        <Text style={[styles.docMeta, { color: colors.textMuted }]}>
           {formatSize(document.size)} • {document.mime_type || 'Unknown Type'}
         </Text>
         
@@ -319,12 +320,12 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
       {/* SHA-256 Fingerprint */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>SHA-256 Digital Fingerprint</Text>
-        <View style={styles.card}>
-          <Text style={styles.hashText} selectable={true}>
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>SHA-256 Digital Fingerprint</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.hashText, { color: colors.primary, backgroundColor: colors.surfaceHighlight }]} selectable={true}>
             {document.current_hash || 'No hash recorded'}
           </Text>
-          <Text style={styles.cardNote}>
+          <Text style={[styles.cardNote, { color: colors.textMuted }]}>
             Mathematical representation of this file. If even one letter or pixel changes, this entire hash changes.
           </Text>
         </View>
@@ -332,73 +333,73 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
       {/* Ethereum Proof Status */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ethereum Blockchain Proof</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Ethereum Blockchain Proof</Text>
         
         {loadingProof ? (
-          <View style={[styles.card, styles.centerCard]}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Checking Sepolia smart contract...</Text>
+          <View style={[styles.card, styles.centerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textMuted }]}>Checking Sepolia smart contract...</Text>
           </View>
         ) : proof ? (
-          <View style={styles.card}>
-            <View style={styles.proofHeader}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.proofHeader, { borderBottomColor: colors.border }]}>
               <View style={styles.proofNetwork}>
-                <MaterialCommunityIcons name="ethereum" size={18} color={COLORS.blockchain} />
-                <Text style={styles.proofNetworkText}>{proof.blockchain_network}</Text>
+                <MaterialCommunityIcons name="ethereum" size={18} color={colors.blockchain} />
+                <Text style={[styles.proofNetworkText, { color: colors.textPrimary }]}>{proof.blockchain_network}</Text>
               </View>
-              <View style={styles.proofStatusBadge}>
-                <Feather name="check" size={12} color={COLORS.blockchain} />
-                <Text style={styles.proofStatusText}>{proof.status}</Text>
+              <View style={[styles.proofStatusBadge, { backgroundColor: colors.blockchain + '15', borderColor: colors.blockchain + '30' }]}>
+                <Feather name="check" size={12} color={colors.blockchain} />
+                <Text style={[styles.proofStatusText, { color: colors.blockchain }]}>{proof.status}</Text>
               </View>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Smart Contract</Text>
+            <View style={[styles.infoRow, { borderBottomColor: colors.border + '60' }]}>
+              <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Smart Contract</Text>
               <TouchableOpacity
                 style={styles.linkButton}
                 onPress={openContract}
               >
-                <Text style={styles.linkText}>
+                <Text style={[styles.linkText, { color: colors.primary }]}>
                   {truncateTxHash(proof.contract_address || '0x1b9A1FBD6FC714B1aC443d00a555529567bd8D0E')}
                 </Text>
-                <Feather name="external-link" size={13} color={COLORS.primary} />
+                <Feather name="external-link" size={13} color={colors.primary} />
               </TouchableOpacity>
             </View>
 
             {proof.transaction_hash && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Transaction Proof</Text>
+              <View style={[styles.infoRow, { borderBottomColor: colors.border + '60' }]}>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Transaction Proof</Text>
                 <TouchableOpacity
                   style={styles.linkButton}
                   onPress={() => openEtherscan(proof.transaction_hash!)}
                 >
-                  <Text style={styles.linkText}>
+                  <Text style={[styles.linkText, { color: colors.primary }]}>
                     {truncateTxHash(proof.transaction_hash)}
                   </Text>
-                  <Feather name="external-link" size={13} color={COLORS.primary} />
+                  <Feather name="external-link" size={13} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             )}
 
             {proof.block_number && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Block Height</Text>
-                <Text style={styles.infoValue}>#{proof.block_number}</Text>
+              <View style={[styles.infoRow, { borderBottomColor: colors.border + '60' }]}>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Block Height</Text>
+                <Text style={[styles.infoValue, { color: colors.textPrimary }]}>#{proof.block_number}</Text>
               </View>
             )}
 
             {proof.anchored_at && (
               <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.infoLabel}>Anchored Timestamp</Text>
-                <Text style={styles.infoValue}>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Anchored Timestamp</Text>
+                <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
                   {new Date(proof.anchored_at).toLocaleDateString()} {new Date(proof.anchored_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
             )}
           </View>
         ) : (
-          <View style={styles.card}>
-            <Text style={styles.unanchoredText}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.unanchoredText, { color: colors.textMuted }]}>
               This document has not been anchored to Ethereum yet. Creating a blockchain proof records an unalterable timestamp on the public ledger.
             </Text>
             <View style={{ height: SPACING.md }} />
@@ -414,24 +415,24 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
       {/* Search for Tamper Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Search for Tamper</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardNote}>
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Search for Tamper</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.cardNote, { color: colors.textMuted }]}>
             Select any local file on your phone to compare its SHA-256 fingerprint against this registered vault document and Sepolia blockchain proof.
           </Text>
           <View style={{ height: SPACING.sm }} />
           <TouchableOpacity
-            style={styles.tamperSearchBtn}
+            style={[styles.tamperSearchBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary + '40' }]}
             onPress={handleSearchForTamper}
             disabled={isTestingTamper}
             activeOpacity={0.8}
           >
             {isTestingTamper ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Feather name="search" size={15} color={COLORS.primary} />
+              <Feather name="search" size={15} color={colors.primary} />
             )}
-            <Text style={styles.tamperSearchBtnText}>
+            <Text style={[styles.tamperSearchBtnText, { color: colors.primary }]}>
               {isTestingTamper ? 'Analyzing File Hash...' : 'Pick Local File to Compare'}
             </Text>
           </TouchableOpacity>
@@ -441,23 +442,23 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
               style={[
                 styles.tamperResultBox,
                 {
-                  backgroundColor: tamperResult.matches ? COLORS.success + '15' : COLORS.danger + '15',
-                  borderColor: tamperResult.matches ? COLORS.success + '40' : COLORS.danger + '40',
+                  backgroundColor: tamperResult.matches ? colors.success + '15' : colors.danger + '15',
+                  borderColor: tamperResult.matches ? colors.success + '40' : colors.danger + '40',
                 },
               ]}
             >
               <Text
                 style={[
                   styles.tamperResultTitle,
-                  { color: tamperResult.matches ? COLORS.success : COLORS.danger },
+                  { color: tamperResult.matches ? colors.success : colors.danger },
                 ]}
               >
                 {tamperResult.matches ? '✓ MATCH CONFIRMED' : '⚠ FINGERPRINT MISMATCH DETECTED'}
               </Text>
-              <Text style={styles.tamperResultFile} numberOfLines={1}>
+              <Text style={[styles.tamperResultFile, { color: colors.textPrimary }]} numberOfLines={1}>
                 File: {tamperResult.fileName}
               </Text>
-              <Text style={styles.tamperResultHash} numberOfLines={2}>
+              <Text style={[styles.tamperResultHash, { color: colors.textMuted }]} numberOfLines={2}>
                 Calculated: {tamperResult.computedHash}
               </Text>
             </View>
@@ -479,23 +480,23 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         {/* Two-Button Sharing Row */}
         <View style={styles.shareRow}>
           <TouchableOpacity
-            style={[styles.shareActionBtn, styles.nativeShareBtn]}
+            style={[styles.shareActionBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.primary + '40' }]}
             onPress={handleSystemShare}
             disabled={downloading || deleting || verifying || anchoring}
             activeOpacity={0.75}
           >
-            <Feather name="share-2" size={16} color={COLORS.primary} />
-            <Text style={styles.nativeShareText}>Share via Apps</Text>
+            <Feather name="share-2" size={16} color={colors.primary} />
+            <Text style={[styles.nativeShareText, { color: colors.primary }]}>Share via Apps</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.shareActionBtn, styles.vaultShareBtn]}
+            style={[styles.shareActionBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}
             onPress={() => setShareModalVisible(true)}
             disabled={downloading || deleting || verifying || anchoring}
             activeOpacity={0.75}
           >
-            <Feather name="user-check" size={16} color={COLORS.textPrimary} />
-            <Text style={styles.vaultShareText}>Grant In-App Access</Text>
+            <Feather name="user-check" size={16} color={colors.textPrimary} />
+            <Text style={[styles.vaultShareText, { color: colors.textPrimary }]}>Grant In-App Access</Text>
           </TouchableOpacity>
         </View>
 
@@ -526,23 +527,23 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         onRequestClose={() => setShareModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 24) }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Grant In-App Access</Text>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Grant In-App Access</Text>
               <TouchableOpacity onPress={() => setShareModalVisible(false)}>
-                <Feather name="x" size={20} color={COLORS.textMuted} />
+                <Feather name="x" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.modalSubtitle}>
+            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
               Create a permission-controlled, time-bounded share record for another user.
             </Text>
 
-            <Text style={styles.inputLabel}>Recipient Email or User ID</Text>
+            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Recipient Email or User ID</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.textPrimary }]}
               placeholder="e.g. colleague@trustlink.app"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={shareTarget}
               onChangeText={setShareTarget}
               autoCapitalize="none"
@@ -550,38 +551,38 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
               keyboardType="email-address"
             />
 
-            <Text style={styles.inputLabel}>Permission Level</Text>
+            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Permission Level</Text>
             <View style={styles.pickerRow}>
               <TouchableOpacity
-                style={[styles.pickerButton, permission === 'VIEW' && styles.pickerActive]}
+                style={[styles.pickerButton, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }, permission === 'VIEW' && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }]}
                 onPress={() => setPermission('VIEW')}
               >
-                <Feather name="eye" size={14} color={permission === 'VIEW' ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.pickerText, permission === 'VIEW' && styles.pickerActiveText]}>
+                <Feather name="eye" size={14} color={permission === 'VIEW' ? colors.primary : colors.textMuted} />
+                <Text style={[styles.pickerText, { color: colors.textMuted }, permission === 'VIEW' && { color: colors.primary }]}>
                   VIEW ONLY
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.pickerButton, permission === 'DOWNLOAD' && styles.pickerActive]}
+                style={[styles.pickerButton, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }, permission === 'DOWNLOAD' && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }]}
                 onPress={() => setPermission('DOWNLOAD')}
               >
-                <Feather name="download" size={14} color={permission === 'DOWNLOAD' ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.pickerText, permission === 'DOWNLOAD' && styles.pickerActiveText]}>
+                <Feather name="download" size={14} color={permission === 'DOWNLOAD' ? colors.primary : colors.textMuted} />
+                <Text style={[styles.pickerText, { color: colors.textMuted }, permission === 'DOWNLOAD' && { color: colors.primary }]}>
                   DOWNLOAD & VIEW
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Expiration Duration</Text>
+            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Expiration Duration</Text>
             <View style={styles.pickerRow}>
               {(['1h', '24h', '7d', 'never'] as ExpiryOption[]).map((opt) => (
                 <TouchableOpacity
                   key={opt}
-                  style={[styles.expiryBtn, expiry === opt && styles.pickerActive]}
+                  style={[styles.expiryBtn, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }, expiry === opt && { borderColor: colors.primary, backgroundColor: colors.primary + '15' }]}
                   onPress={() => setExpiry(opt)}
                 >
-                  <Text style={[styles.expiryText, expiry === opt && styles.pickerActiveText]}>
+                  <Text style={[styles.expiryText, { color: colors.textMuted }, expiry === opt && { color: colors.primary }]}>
                     {opt.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
@@ -605,7 +606,6 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   content: {
     padding: SPACING.md,
@@ -619,24 +619,19 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: RADIUS.xl,
-    backgroundColor: COLORS.surfaceHighlight,
     borderWidth: 1,
-    borderColor: COLORS.primary + '30',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
   },
   docName: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: TYPOGRAPHY.bold,
     textAlign: 'center',
     marginBottom: SPACING.xs,
   },
   docMeta: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textMuted,
+    fontSize: TYPOGRAPHY.xs,
     marginBottom: SPACING.sm,
   },
   statusBadge: {
@@ -649,28 +644,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.bold,
     letterSpacing: 0.5,
   },
   section: {
     marginBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textMuted,
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.bold,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: SPACING.xs,
     marginLeft: 4,
   },
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   centerCard: {
     alignItems: 'center',
@@ -679,24 +671,19 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   loadingText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.textMuted,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.medium,
   },
   hashText: {
     fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.medium,
     lineHeight: 16,
-    backgroundColor: COLORS.surfaceHighlight,
     padding: 10,
     borderRadius: RADIUS.md,
     overflow: 'hidden',
   },
   cardNote: {
     fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textMuted,
     marginTop: SPACING.xs,
     lineHeight: 16,
   },
@@ -705,9 +692,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.surfaceHighlight,
     borderWidth: 1,
-    borderColor: COLORS.primary + '40',
     borderRadius: RADIUS.md,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -715,8 +700,7 @@ const styles = StyleSheet.create({
   },
   tamperSearchBtnText: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.bold,
   },
   tamperResultBox: {
     marginTop: SPACING.sm,
@@ -727,17 +711,15 @@ const styles = StyleSheet.create({
   },
   tamperResultTitle: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.bold,
   },
   tamperResultFile: {
     fontSize: 11,
-    color: COLORS.textPrimary,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.medium,
   },
   tamperResultHash: {
     fontSize: 10,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    color: COLORS.textMuted,
+    fontWeight: TYPOGRAPHY.medium,
   },
   proofHeader: {
     flexDirection: 'row',
@@ -745,7 +727,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
     marginBottom: SPACING.sm,
   },
   proofNetwork: {
@@ -754,25 +735,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   proofNetworkText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: TYPOGRAPHY.bold,
   },
   proofStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: COLORS.blockchain + '15',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.blockchain + '30',
   },
   proofStatusText: {
     fontSize: 10,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.blockchain,
+    fontWeight: TYPOGRAPHY.bold,
   },
   infoRow: {
     flexDirection: 'row',
@@ -780,17 +757,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border + '60',
   },
   infoLabel: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textMuted,
   },
   infoValue: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.medium,
   },
   linkButton: {
     flexDirection: 'row',
@@ -799,13 +772,10 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.bold,
   },
   unanchoredText: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textMuted,
     lineHeight: 18,
   },
   actions: {
@@ -823,26 +793,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: RADIUS.md,
-  },
-  nativeShareBtn: {
-    backgroundColor: COLORS.surfaceHighlight,
     borderWidth: 1,
-    borderColor: COLORS.primary + '40',
   },
   nativeShareText: {
-    color: COLORS.primary,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-  },
-  vaultShareBtn: {
-    backgroundColor: COLORS.surfaceHighlight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    fontWeight: TYPOGRAPHY.bold,
+    fontSize: TYPOGRAPHY.sm,
   },
   vaultShareText: {
-    color: COLORS.textPrimary,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.bold,
+    fontSize: TYPOGRAPHY.sm,
   },
   modalOverlay: {
     flex: 1,
@@ -850,12 +809,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
     borderTopLeftRadius: RADIUS.xxl,
     borderTopRightRadius: RADIUS.xxl,
     padding: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -864,35 +821,27 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   modalTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: TYPOGRAPHY.bold,
   },
   modalSubtitle: {
     fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textMuted,
     marginBottom: SPACING.md,
     lineHeight: 16,
   },
   inputLabel: {
     fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textMuted,
+    fontWeight: TYPOGRAPHY.bold,
     textTransform: 'uppercase',
     marginBottom: 6,
     marginTop: SPACING.sm,
   },
   input: {
-    backgroundColor: COLORS.surfaceHighlight,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    color: COLORS.textPrimary,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontSize: TYPOGRAPHY.sm,
   },
   pickerRow: {
     flexDirection: 'row',
@@ -906,21 +855,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceHighlight,
     borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  pickerActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '15',
   },
   pickerText: {
     fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textMuted,
-  },
-  pickerActiveText: {
-    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.bold,
   },
   expiryBtn: {
     flex: 1,
@@ -928,13 +867,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceHighlight,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   expiryText: {
     fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: COLORS.textMuted,
+    fontWeight: TYPOGRAPHY.bold,
   },
 });

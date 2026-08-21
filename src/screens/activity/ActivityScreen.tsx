@@ -20,7 +20,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
+import { useTheme } from '@/context/ThemeContext';
 import { auditService, ExtendedAuditLog, AuditCategory } from '@/services/auditService';
 import { truncateHash, truncateTxHash } from '@/lib/crypto';
 import { BLOCKCHAIN_EXPLORER_BASE } from '@/constants';
@@ -33,6 +34,7 @@ interface DateSection {
 
 export function ActivityScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [activeCategory, setActiveCategory] = useState<AuditCategory>('ALL');
   const [logs, setLogs] = useState<ExtendedAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,157 +65,169 @@ export function ActivityScreen() {
     loadLogs(activeCategory);
   };
 
-  const copyToClipboard = (text: string, fieldName: string) => {
+  const handleCategoryChange = (category: AuditCategory) => {
+    setActiveCategory(category);
+    setLoading(true);
+    loadLogs(category);
+  };
+
+  const copyToClipboard = (text: string, fieldKey: string) => {
     Clipboard.setString(text);
-    setCopiedField(fieldName);
+    setCopiedField(fieldKey);
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  const openEtherscan = (txHash: string) => {
+    const url = `${BLOCKCHAIN_EXPLORER_BASE}${txHash}`;
+    Linking.openURL(url);
+  };
+
+  // Helper for timeline action styling & icon configuration
   const getActionConfig = (action: string) => {
     switch (action) {
-      case 'BLOCKCHAIN_ANCHORED':
+      case 'DOCUMENT_UPLOADED':
         return {
-          icon: <Feather name="link" size={14} color={COLORS.blockchain} />,
-          title: 'Ethereum Proof Created',
-          badgeText: 'Sepolia',
-          badgeColor: COLORS.blockchain,
-          badgeBg: COLORS.blockchainMuted,
-          nodeColor: COLORS.blockchain,
-        };
-      case 'BLOCKCHAIN_ANCHOR_FAILED':
-        return {
-          icon: <Feather name="alert-triangle" size={14} color={COLORS.danger} />,
-          title: 'Blockchain Anchoring Failed',
-          badgeText: 'Failed',
-          badgeColor: COLORS.danger,
-          badgeBg: COLORS.dangerMuted,
-          nodeColor: COLORS.danger,
+          icon: <Feather name="upload-cloud" size={14} color={colors.primary} />,
+          title: 'Document Vaulted',
+          badgeText: 'Vaulted',
+          badgeColor: colors.primary,
+          badgeBg: colors.primaryMuted,
+          nodeColor: colors.primary,
         };
       case 'HASH_CREATED':
         return {
-          icon: <Feather name="shield" size={14} color={COLORS.primary} />,
-          title: 'Digital Fingerprint Created',
-          badgeText: 'SHA-256',
-          badgeColor: COLORS.primary,
-          badgeBg: COLORS.primaryMuted,
-          nodeColor: COLORS.primary,
+          icon: <Feather name="shield" size={14} color={colors.primary} />,
+          title: 'SHA-256 Generated',
+          badgeText: 'Fingerprinted',
+          badgeColor: colors.primary,
+          badgeBg: colors.primaryMuted,
+          nodeColor: colors.primary,
         };
       case 'DOCUMENT_VERIFIED':
         return {
-          icon: <Feather name="check" size={14} color={COLORS.success} />,
-          title: 'Cryptographic Check Passed',
-          badgeText: 'Authentic',
-          badgeColor: COLORS.success,
-          badgeBg: COLORS.successMuted,
-          nodeColor: COLORS.success,
+          icon: <Feather name="check-circle" size={14} color={colors.success} />,
+          title: 'Integrity Verified',
+          badgeText: 'Verified',
+          badgeColor: colors.success,
+          badgeBg: colors.successMuted,
+          nodeColor: colors.success,
+        };
+      case 'BLOCKCHAIN_ANCHORED':
+        return {
+          icon: <MaterialCommunityIcons name="ethereum" size={14} color={colors.blockchain} />,
+          title: 'Sepolia Proof Created',
+          badgeText: 'Anchored',
+          badgeColor: colors.blockchain,
+          badgeBg: colors.blockchainMuted,
+          nodeColor: colors.blockchain,
+        };
+      case 'BLOCKCHAIN_ANCHOR_FAILED':
+        return {
+          icon: <Feather name="alert-triangle" size={14} color={colors.danger} />,
+          title: 'Anchoring Failed',
+          badgeText: 'Failed',
+          badgeColor: colors.danger,
+          badgeBg: colors.dangerMuted,
+          nodeColor: colors.danger,
         };
       case 'DOCUMENT_SHARED':
         return {
-          icon: <Feather name="share-2" size={14} color={COLORS.warning} />,
-          title: 'Document Access Shared',
+          icon: <Feather name="share-2" size={14} color={colors.warning} />,
+          title: 'Access Granted',
           badgeText: 'Shared',
-          badgeColor: COLORS.warning,
-          badgeBg: COLORS.warningMuted,
-          nodeColor: COLORS.warning,
+          badgeColor: colors.warning,
+          badgeBg: colors.warningMuted,
+          nodeColor: colors.warning,
         };
       case 'SHARE_REVOKED':
         return {
-          icon: <Feather name="slash" size={14} color={COLORS.danger} />,
+          icon: <Feather name="slash" size={14} color={colors.danger} />,
           title: 'Share Access Revoked',
           badgeText: 'Revoked',
-          badgeColor: COLORS.danger,
-          badgeBg: COLORS.dangerMuted,
-          nodeColor: COLORS.danger,
-        };
-      case 'DOCUMENT_UPLOADED':
-        return {
-          icon: <Feather name="upload" size={14} color={COLORS.primary} />,
-          title: 'Document Vaulted',
-          badgeText: 'Stored',
-          badgeColor: COLORS.primary,
-          badgeBg: COLORS.primaryMuted,
-          nodeColor: COLORS.primary,
+          badgeColor: colors.danger,
+          badgeBg: colors.dangerMuted,
+          nodeColor: colors.danger,
         };
       case 'DOCUMENT_DOWNLOADED':
         return {
-          icon: <Feather name="download" size={14} color={COLORS.textSecondary} />,
+          icon: <Feather name="download" size={14} color={colors.textSecondary} />,
           title: 'Document Downloaded',
-          badgeText: 'Download',
-          badgeColor: COLORS.textSecondary,
-          badgeBg: 'rgba(148, 163, 184, 0.15)',
-          nodeColor: COLORS.textSecondary,
+          badgeText: 'Downloaded',
+          badgeColor: colors.textSecondary,
+          badgeBg: colors.surfaceHighlight,
+          nodeColor: colors.textSecondary,
         };
       case 'DOCUMENT_DELETED':
         return {
-          icon: <Feather name="trash-2" size={14} color={COLORS.danger} />,
+          icon: <Feather name="trash-2" size={14} color={colors.danger} />,
           title: 'Document Deleted',
           badgeText: 'Deleted',
-          badgeColor: COLORS.danger,
-          badgeBg: COLORS.dangerMuted,
-          nodeColor: COLORS.danger,
+          badgeColor: colors.danger,
+          badgeBg: colors.dangerMuted,
+          nodeColor: colors.danger,
         };
       case 'USER_LOGIN':
         return {
-          icon: <Feather name="log-in" size={14} color={COLORS.primary} />,
-          title: 'User Signed In',
-          badgeText: 'Auth',
-          badgeColor: COLORS.primary,
-          badgeBg: COLORS.primaryMuted,
-          nodeColor: COLORS.primary,
+          icon: <Feather name="log-in" size={14} color={colors.primary} />,
+          title: 'User Authenticated',
+          badgeText: 'Security',
+          badgeColor: colors.primary,
+          badgeBg: colors.primaryMuted,
+          nodeColor: colors.primary,
         };
       case 'USER_LOGOUT':
         return {
-          icon: <Feather name="log-out" size={14} color={COLORS.textMuted} />,
+          icon: <Feather name="log-out" size={14} color={colors.textMuted} />,
           title: 'User Signed Out',
-          badgeText: 'Auth',
-          badgeColor: COLORS.textMuted,
-          badgeBg: COLORS.surfaceElevated,
-          nodeColor: COLORS.textMuted,
+          badgeText: 'Security',
+          badgeColor: colors.textMuted,
+          badgeBg: colors.surfaceHighlight,
+          nodeColor: colors.textMuted,
         };
       case 'USER_REGISTERED':
         return {
-          icon: <Feather name="user-check" size={14} color={COLORS.success} />,
+          icon: <Feather name="user-plus" size={14} color={colors.success} />,
           title: 'Account Created',
-          badgeText: 'New User',
-          badgeColor: COLORS.success,
-          badgeBg: COLORS.successMuted,
-          nodeColor: COLORS.success,
+          badgeText: 'Security',
+          badgeColor: colors.success,
+          badgeBg: colors.successMuted,
+          nodeColor: colors.success,
         };
       case 'FOLDER_CREATED':
         return {
-          icon: <Feather name="folder-plus" size={14} color={COLORS.warning} />,
+          icon: <Feather name="folder-plus" size={14} color={colors.warning} />,
           title: 'Folder Created',
           badgeText: 'Folder',
-          badgeColor: COLORS.warning,
-          badgeBg: COLORS.warningMuted,
-          nodeColor: COLORS.warning,
+          badgeColor: colors.warning,
+          badgeBg: colors.warningMuted,
+          nodeColor: colors.warning,
         };
       case 'FOLDER_RENAMED':
         return {
-          icon: <Feather name="edit-2" size={14} color={COLORS.warning} />,
+          icon: <Feather name="edit-2" size={14} color={colors.warning} />,
           title: 'Folder Renamed',
           badgeText: 'Folder',
-          badgeColor: COLORS.warning,
-          badgeBg: COLORS.warningMuted,
-          nodeColor: COLORS.warning,
+          badgeColor: colors.warning,
+          badgeBg: colors.warningMuted,
+          nodeColor: colors.warning,
         };
       case 'FOLDER_DELETED':
         return {
-          icon: <Feather name="folder-minus" size={14} color={COLORS.danger} />,
+          icon: <Feather name="folder-minus" size={14} color={colors.danger} />,
           title: 'Folder Deleted',
           badgeText: 'Deleted',
-          badgeColor: COLORS.danger,
-          badgeBg: COLORS.dangerMuted,
-          nodeColor: COLORS.danger,
+          badgeColor: colors.danger,
+          badgeBg: colors.dangerMuted,
+          nodeColor: colors.danger,
         };
       default:
         return {
-          icon: <Feather name="activity" size={14} color={COLORS.textSecondary} />,
+          icon: <Feather name="activity" size={14} color={colors.textSecondary} />,
           title: action.replace(/_/g, ' '),
           badgeText: 'Event',
-          badgeColor: COLORS.textSecondary,
-          badgeBg: COLORS.surfaceElevated,
-          nodeColor: COLORS.textSecondary,
+          badgeColor: colors.textSecondary,
+          badgeBg: colors.surfaceHighlight,
+          nodeColor: colors.textSecondary,
         };
     }
   };
@@ -273,16 +287,16 @@ export function ActivityScreen() {
       >
         {/* Left Column: Vertical Timeline Connector & Icon Node */}
         <View style={styles.timelineLeft}>
-          <View style={[styles.timelineNode, { borderColor: config.nodeColor }]}>
+          <View style={[styles.timelineNode, { borderColor: config.nodeColor, backgroundColor: colors.surface }]}>
             {config.icon}
           </View>
-          {!isLastInSection && <View style={styles.timelineLine} />}
+          {!isLastInSection && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
         </View>
 
         {/* Right Column: Clean Event Card */}
-        <View style={styles.eventCard}>
+        <View style={[styles.eventCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.eventCardHeader}>
-            <Text style={styles.eventTitle} numberOfLines={1}>
+            <Text style={[styles.eventTitle, { color: colors.textPrimary }]} numberOfLines={1}>
               {config.title}
             </Text>
             <View style={[styles.eventBadge, { backgroundColor: config.badgeBg }]}>
@@ -294,59 +308,74 @@ export function ActivityScreen() {
 
           {targetName && (
             <View style={styles.targetContainer}>
-              <Feather name="file-text" size={11} color={COLORS.textMuted} />
-              <Text style={styles.targetName} numberOfLines={1}>
+              <Feather name="file-text" size={11} color={colors.textMuted} />
+              <Text style={[styles.targetName, { color: colors.textSecondary }]} numberOfLines={1}>
                 {targetName}
               </Text>
             </View>
           )}
 
-          <Text style={styles.eventTime}>{timeString}</Text>
+          <View style={styles.eventCardFooter}>
+            <View style={styles.timeTag}>
+              <Feather name="clock" size={10} color={colors.textMuted} />
+              <Text style={[styles.timeText, { color: colors.textMuted }]}>{timeString}</Text>
+            </View>
+            <Feather name="chevron-right" size={14} color={colors.textMuted} />
+          </View>
         </View>
       </TouchableOpacity>
     );
   };
 
+  const renderSectionHeader = ({ section: { title } }: { section: DateSection }) => (
+    <View style={[styles.sectionHeaderWrap, { backgroundColor: colors.background }]}>
+      <View style={[styles.sectionPill, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
+        <Feather name="calendar" size={11} color={colors.primary} />
+        <Text style={[styles.sectionHeaderText, { color: colors.textPrimary }]}>{title}</Text>
+      </View>
+    </View>
+  );
+
   const categories: { key: AuditCategory; label: string; icon: any }[] = [
-    { key: 'ALL', label: 'All Activity', icon: 'layers' },
-    { key: 'FILES', label: 'Vault Files', icon: 'file' },
-    { key: 'INTEGRITY', label: 'Signatures', icon: 'shield' },
-    { key: 'BLOCKCHAIN', label: 'Blockchain', icon: 'link' },
-    { key: 'SHARING', label: 'Sharing', icon: 'share-2' },
+    { key: 'ALL', label: 'All Activity', icon: 'list' },
+    { key: 'BLOCKCHAIN', label: 'Ethereum Proofs', icon: 'link' },
+    { key: 'INTEGRITY', label: 'Verifications', icon: 'shield-check' },
+    { key: 'SHARING', label: 'Shares', icon: 'share-2' },
+    { key: 'FILES', label: 'Vault Files', icon: 'folder' },
   ];
 
-  const selectedMeta = selectedEvent?.metadata as Record<string, any> | null;
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header Info */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerSubtitle}>ENTERPRISE AUDIT TRAIL</Text>
-          <Text style={styles.headerTitle}>Activity Timeline</Text>
-        </View>
-        <View style={styles.appendOnlyBadge}>
-          <Feather name="check-circle" size={12} color={COLORS.success} />
-          <Text style={styles.appendOnlyText}>Cryptographically Logged</Text>
-        </View>
-      </View>
-
-      {/* Category Pills Bar */}
-      <View style={styles.filterWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Category Pills Header */}
+      <View style={styles.categoriesContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesScroll}
+        >
           {categories.map((cat) => (
             <TouchableOpacity
               key={cat.key}
-              style={[styles.filterPill, activeCategory === cat.key && styles.filterPillActive]}
-              onPress={() => setActiveCategory(cat.key)}
-              activeOpacity={0.7}
+              style={[
+                styles.categoryButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                activeCategory === cat.key && [styles.categoryButtonActive, { backgroundColor: colors.primary, borderColor: colors.primary }],
+              ]}
+              onPress={() => handleCategoryChange(cat.key)}
+              activeOpacity={0.75}
             >
               <Feather
                 name={cat.icon}
-                size={12}
-                color={activeCategory === cat.key ? COLORS.primary : COLORS.textMuted}
+                size={13}
+                color={activeCategory === cat.key ? '#FFFFFF' : colors.textMuted}
               />
-              <Text style={[styles.filterPillText, activeCategory === cat.key && styles.filterPillTextActive]}>
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: colors.textMuted },
+                  activeCategory === cat.key && [styles.categoryTextActive, { color: '#FFFFFF' }],
+                ]}
+              >
                 {cat.label}
               </Text>
             </TouchableOpacity>
@@ -354,185 +383,207 @@ export function ActivityScreen() {
         </ScrollView>
       </View>
 
-      {/* Main Sectioned Timeline */}
+      {/* Main Timeline List */}
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : logs.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Feather name="shield" size={48} color={colors.textMuted} style={styles.emptyIcon} />
+          <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No security events found</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+            {activeCategory === 'ALL'
+              ? 'Your security audit trail will log every file upload, SHA-256 fingerprint, verification check, and blockchain proof.'
+              : `No events recorded in the ${activeCategory.toLowerCase()} category yet.`}
+          </Text>
         </View>
       ) : (
         <SectionList
           sections={groupedSections}
           keyExtractor={(item) => item.id}
           renderItem={renderTimelineItem}
-          renderSectionHeader={({ section: { title } }) => (
-            <View style={styles.sectionHeaderContainer}>
-              <View style={styles.sectionHeaderBadge}>
-                <Text style={styles.sectionHeaderText}>{title}</Text>
-              </View>
-            </View>
-          )}
+          renderSectionHeader={renderSectionHeader}
+          contentContainerStyle={[styles.timelineList, { paddingBottom: insets.bottom + 80 }]}
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="timeline-clock-outline" size={48} color={COLORS.textMuted} style={styles.emptyIcon} />
-              <Text style={styles.emptyTitle}>No Activity Recorded</Text>
-              <Text style={styles.emptySubtitle}>
-                Every file upload, cryptographic signature, blockchain anchoring event, and permission grant is automatically recorded here.
-              </Text>
-            </View>
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
           }
         />
       )}
 
-      {/* Interactive Audit Certificate Modal */}
-      <Modal
-        visible={Boolean(selectedEvent)}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setSelectedEvent(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderTitleRow}>
-                <Feather name="shield" size={18} color={COLORS.primary} />
-                <Text style={styles.modalTitle}>Audit Event Certificate</Text>
+      {/* Forensic Audit Certificate Modal */}
+      {selectedEvent && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setSelectedEvent(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, 24) }]}>
+              {/* Modal Header */}
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                <View style={styles.modalHeaderTitleRow}>
+                  <Feather name="shield" size={18} color={colors.primary} />
+                  <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Forensic Audit Certificate</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setSelectedEvent(null)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather name="x" size={20} color={colors.textMuted} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => setSelectedEvent(null)}>
-                <Feather name="x" size={20} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
 
-            {selectedEvent && (
-              <ScrollView style={styles.modalBody}>
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                 {/* Event Summary Banner */}
-                <View style={styles.modalBanner}>
-                  <Text style={styles.modalBannerAction}>
+                <View style={[styles.modalBanner, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
+                  <Text style={[styles.modalBannerAction, { color: colors.textPrimary }]}>
                     {getActionConfig(selectedEvent.action).title}
                   </Text>
-                  <Text style={styles.modalBannerDate}>
+                  <Text style={[styles.modalBannerDate, { color: colors.textMuted }]}>
                     {new Date(selectedEvent.created_at).toLocaleString()}
                   </Text>
                 </View>
 
-                {/* Details Table */}
-                <View style={styles.metaTable}>
-                  <View style={styles.metaRow}>
-                    <Text style={styles.metaKey}>Event ID</Text>
+                {/* Structured Metadata Table */}
+                <View style={[styles.metaTable, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.metaRow, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.metaKey, { color: colors.textMuted }]}>Event ID</Text>
                     <TouchableOpacity
                       style={styles.copyableRow}
                       onPress={() => copyToClipboard(selectedEvent.id, 'id')}
                     >
-                      <Text style={styles.metaMonoSmall}>{truncateHash(selectedEvent.id)}</Text>
-                      <Feather name={copiedField === 'id' ? "check" : "copy"} size={12} color={COLORS.primary} />
+                      <Text style={[styles.metaMonoSmall, { color: colors.primary }]}>{truncateHash(selectedEvent.id, 6, 6)}</Text>
+                      <Feather
+                        name={copiedField === 'id' ? 'check' : 'copy'}
+                        size={12}
+                        color={copiedField === 'id' ? colors.success : colors.primary}
+                      />
                     </TouchableOpacity>
                   </View>
 
-                  {selectedEvent.document && (
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaKey}>Target Document</Text>
-                      <Text style={styles.metaValue}>{selectedEvent.document.name}</Text>
-                    </View>
-                  )}
+                  <View style={[styles.metaRow, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.metaKey, { color: colors.textMuted }]}>Action Category</Text>
+                    <Text style={[styles.metaValue, { color: colors.textPrimary }]}>{selectedEvent.action}</Text>
+                  </View>
 
-                  {selectedMeta?.folder_name && (
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaKey}>Target Folder</Text>
-                      <Text style={styles.metaValue}>{selectedMeta.folder_name}</Text>
-                    </View>
-                  )}
+                  <View style={[styles.metaRow, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.metaKey, { color: colors.textMuted }]}>Target File</Text>
+                    <Text style={[styles.metaValue, { color: colors.textPrimary }]} numberOfLines={1}>
+                      {selectedEvent.document?.name || (selectedEvent.metadata as any)?.name || 'Account/System'}
+                    </Text>
+                  </View>
 
-                  {selectedMeta?.email && (
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaKey}>Account Email</Text>
-                      <Text style={styles.metaValue}>{selectedMeta.email}</Text>
-                    </View>
-                  )}
-
-                  {selectedMeta?.size && (
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaKey}>File Size</Text>
-                      <Text style={styles.metaValue}>
-                        {(selectedMeta.size / 1024).toFixed(1)} KB
-                      </Text>
-                    </View>
-                  )}
-
-                  {selectedMeta?.network && (
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaKey}>Blockchain</Text>
-                      <Text style={[styles.metaValue, { color: COLORS.blockchain }]}>
-                        {selectedMeta.network}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={[styles.metaRow, { borderBottomWidth: 0 }]}>
+                    <Text style={[styles.metaKey, { color: colors.textMuted }]}>Actor User ID</Text>
+                    <Text style={[styles.metaMonoSmall, { color: colors.primary }]}>{truncateHash(selectedEvent.user_id, 6, 6)}</Text>
+                  </View>
                 </View>
 
-                {/* SHA-256 Hash Card */}
-                {selectedMeta?.hash && (
-                  <View style={styles.hashCard}>
+                {/* SHA-256 Fingerprint Card (if present) */}
+                {Boolean(
+                  selectedEvent.document?.current_hash ||
+                  (selectedEvent.metadata as any)?.hash ||
+                  (selectedEvent.metadata as any)?.sha256
+                ) && (
+                  <View style={[styles.hashCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
                     <View style={styles.hashCardHeader}>
-                      <Text style={styles.hashCardTitle}>SHA-256 Digital Fingerprint</Text>
+                      <Text style={[styles.hashCardTitle, { color: colors.textSecondary }]}>SHA-256 Digital Fingerprint</Text>
                       <TouchableOpacity
-                        style={styles.copyBadge}
-                        onPress={() => copyToClipboard(selectedMeta.hash, 'hash')}
+                        style={[styles.copyBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={() =>
+                          copyToClipboard(
+                            selectedEvent.document?.current_hash ||
+                            (selectedEvent.metadata as any)?.hash ||
+                            (selectedEvent.metadata as any)?.sha256,
+                            'hash'
+                          )
+                        }
                       >
-                        <Feather name={copiedField === 'hash' ? "check" : "copy"} size={11} color={COLORS.primary} />
-                        <Text style={styles.copyBadgeText}>
-                          {copiedField === 'hash' ? 'Copied' : 'Copy'}
+                        <Feather
+                          name={copiedField === 'hash' ? 'check' : 'copy'}
+                          size={11}
+                          color={copiedField === 'hash' ? colors.success : colors.primary}
+                        />
+                        <Text style={[styles.copyBadgeText, { color: colors.primary }]}>
+                          {copiedField === 'hash' ? 'COPIED' : 'COPY'}
                         </Text>
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles.hashText} selectable={true}>
-                      {selectedMeta.hash}
+                    <Text style={[styles.hashText, { color: colors.primary }]} selectable={true}>
+                      {selectedEvent.document?.current_hash ||
+                       (selectedEvent.metadata as any)?.hash ||
+                       (selectedEvent.metadata as any)?.sha256}
                     </Text>
                   </View>
                 )}
 
-                {/* Ethereum Transaction Card */}
-                {selectedMeta?.transaction_hash && (
-                  <View style={[styles.hashCard, styles.blockchainProofCard]}>
+                {/* Blockchain Proof Info (if present) */}
+                {Boolean(
+                  (selectedEvent.metadata as any)?.transaction_hash ||
+                  (selectedEvent.metadata as any)?.tx_hash
+                ) && (
+                  <View style={[styles.hashCard, { backgroundColor: colors.surfaceHighlight, borderColor: colors.border }]}>
                     <View style={styles.hashCardHeader}>
-                      <Text style={styles.hashCardTitle}>Sepolia Transaction Hash</Text>
+                      <Text style={[styles.hashCardTitle, { color: colors.blockchain }]}>Ethereum Sepolia Transaction</Text>
                       <TouchableOpacity
-                        style={styles.copyBadge}
-                        onPress={() => copyToClipboard(selectedMeta.transaction_hash, 'tx')}
+                        style={[styles.copyBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={() =>
+                          copyToClipboard(
+                            (selectedEvent.metadata as any)?.transaction_hash ||
+                            (selectedEvent.metadata as any)?.tx_hash,
+                            'tx'
+                          )
+                        }
                       >
-                        <Feather name={copiedField === 'tx' ? "check" : "copy"} size={11} color={COLORS.blockchain} />
-                        <Text style={[styles.copyBadgeText, { color: COLORS.blockchain }]}>
-                          {copiedField === 'tx' ? 'Copied' : 'Copy'}
+                        <Feather
+                          name={copiedField === 'tx' ? 'check' : 'copy'}
+                          size={11}
+                          color={copiedField === 'tx' ? colors.success : colors.blockchain}
+                        />
+                        <Text style={[styles.copyBadgeText, { color: colors.blockchain }]}>
+                          {copiedField === 'tx' ? 'COPIED' : 'COPY'}
                         </Text>
                       </TouchableOpacity>
                     </View>
-                    <Text style={[styles.hashText, { color: COLORS.blockchain }]} selectable={true}>
-                      {selectedMeta.transaction_hash}
+                    <Text style={[styles.hashText, { color: colors.blockchain }]} selectable={true}>
+                      {(selectedEvent.metadata as any)?.transaction_hash ||
+                       (selectedEvent.metadata as any)?.tx_hash}
                     </Text>
                     <TouchableOpacity
-                      style={styles.etherscanBtn}
-                      onPress={() => Linking.openURL(`${BLOCKCHAIN_EXPLORER_BASE}${selectedMeta.transaction_hash}`)}
+                      style={[styles.etherscanBtn, { backgroundColor: colors.blockchainMuted }]}
+                      onPress={() =>
+                        openEtherscan(
+                          (selectedEvent.metadata as any)?.transaction_hash ||
+                          (selectedEvent.metadata as any)?.tx_hash
+                        )
+                      }
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.etherscanBtnText}>Verify on Sepolia Etherscan</Text>
-                      <Feather name="external-link" size={13} color={COLORS.blockchain} />
+                      <Feather name="external-link" size={13} color={colors.blockchain} />
+                      <Text style={[styles.etherscanBtnText, { color: colors.blockchain }]}>Verify on Sepolia Etherscan</Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
                 <View style={{ height: SPACING.md }} />
                 <Button
-                  label="Done"
+                  label="Close Certificate"
                   onPress={() => setSelectedEvent(null)}
-                  variant="primary"
-                  fullWidth
+                  variant="secondary"
                 />
               </ScrollView>
-            )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -540,107 +591,62 @@ export function ActivityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.xs,
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
-    letterSpacing: 1,
-  },
-  headerTitle: {
-    fontSize: TYPOGRAPHY.lg,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-    marginTop: 2,
-  },
-  appendOnlyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.successMuted,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    gap: 4,
-  },
-  appendOnlyText: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.success,
-  },
-  filterWrapper: {
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  filterScroll: {
-    paddingHorizontal: SPACING.md,
-    gap: SPACING.xs,
-  },
-  filterPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  filterPillActive: {
-    backgroundColor: COLORS.primaryMuted,
-    borderColor: COLORS.primary,
-  },
-  filterPillText: {
-    fontSize: 11,
-    fontWeight: TYPOGRAPHY.medium,
-    color: COLORS.textMuted,
-  },
-  filterPillTextActive: {
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-  list: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
-  },
-  center: {
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sectionHeaderContainer: {
+  categoriesContainer: {
     paddingVertical: SPACING.sm,
-    marginBottom: 4,
   },
-  sectionHeaderBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.surfaceElevated,
-    paddingHorizontal: SPACING.sm + 2,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
+  categoriesScroll: {
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.xs,
+  },
+  categoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.border,
+  },
+  categoryButtonActive: {
+    borderWidth: 1,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.medium,
+  },
+  categoryTextActive: {
+    fontWeight: TYPOGRAPHY.bold,
+  },
+  timelineList: {
+    paddingHorizontal: SPACING.md,
+  },
+  sectionHeaderWrap: {
+    paddingVertical: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  sectionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
   },
   sectionHeaderText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textSecondary,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
   },
   timelineRow: {
     flexDirection: 'row',
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   timelineLeft: {
     width: 32,
@@ -651,32 +657,22 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    alignItems: 'center',
+    borderWidth: 1.5,
     justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 2,
   },
   timelineLine: {
     flex: 1,
     width: 2,
-    backgroundColor: COLORS.border,
     marginTop: -2,
-    marginBottom: -2,
+    marginBottom: -6,
   },
   eventCard: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.sm,
-    shadowColor: 'rgba(15, 23, 42, 0.03)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 1,
   },
   eventCardHeader: {
     flexDirection: 'row',
@@ -686,15 +682,14 @@ const styles = StyleSheet.create({
   },
   eventTitle: {
     fontSize: TYPOGRAPHY.sm,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.bold,
     flex: 1,
-    marginRight: SPACING.xs,
+    marginRight: 6,
   },
   eventBadge: {
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.sm,
   },
   eventBadgeText: {
     fontSize: 9,
@@ -704,18 +699,26 @@ const styles = StyleSheet.create({
   targetContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
+    gap: 5,
+    marginBottom: 6,
   },
   targetName: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.medium,
-    flexShrink: 1,
+    fontSize: 12,
+    flex: 1,
   },
-  eventTime: {
+  eventCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  timeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
     fontSize: 10,
-    color: COLORS.textMuted,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -730,29 +733,25 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
     marginBottom: 4,
+    textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
+    fontSize: TYPOGRAPHY.sm,
     textAlign: 'center',
     lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.surface,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     padding: SPACING.lg,
     maxHeight: '85%',
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -760,7 +759,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
     paddingBottom: SPACING.sm,
   },
   modalHeaderTitleRow: {
@@ -771,34 +769,27 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
   },
   modalBody: {
     paddingTop: SPACING.xs,
   },
   modalBanner: {
-    backgroundColor: COLORS.surfaceElevated,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   modalBannerAction: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
     marginBottom: 2,
   },
   modalBannerDate: {
     fontSize: 11,
-    color: COLORS.textMuted,
   },
   metaTable: {
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
     marginBottom: SPACING.md,
     overflow: 'hidden',
   },
@@ -809,15 +800,12 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceElevated,
   },
   metaKey: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
   },
   metaValue: {
     fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textPrimary,
     fontWeight: TYPOGRAPHY.medium,
     textAlign: 'right',
   },
@@ -829,18 +817,12 @@ const styles = StyleSheet.create({
   metaMonoSmall: {
     fontSize: 11,
     fontFamily: 'monospace',
-    color: COLORS.primary,
   },
   hashCard: {
-    backgroundColor: COLORS.surfaceElevated,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
     marginBottom: SPACING.md,
-  },
-  blockchainProofCard: {
-    borderColor: COLORS.blockchainMuted,
   },
   hashCardHeader: {
     flexDirection: 'row',
@@ -851,28 +833,23 @@ const styles = StyleSheet.create({
   hashCardTitle: {
     fontSize: 11,
     fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textSecondary,
   },
   copyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   copyBadgeText: {
     fontSize: 10,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
   },
   hashText: {
     fontSize: 11,
     fontFamily: 'monospace',
-    color: COLORS.primary,
     lineHeight: 16,
   },
   etherscanBtn: {
@@ -880,7 +857,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: COLORS.blockchainMuted,
     borderRadius: RADIUS.sm,
     paddingVertical: 8,
     marginTop: SPACING.sm,
@@ -888,6 +864,5 @@ const styles = StyleSheet.create({
   etherscanBtnText: {
     fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.blockchain,
   },
 });
