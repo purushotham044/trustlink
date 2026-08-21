@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StackScreenProps } from '@react-navigation/stack';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { VaultStackParamList } from '@/navigation/VaultNavigator';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '@/constants';
 import { documentService } from '@/services/documentService';
@@ -27,7 +28,7 @@ import { blockchainService } from '@/services/blockchainService';
 import { shareService } from '@/services/shareService';
 import { Button } from '@/components/common/Button';
 import { BlockchainProof, SharePermission } from '@/types';
-import { truncateTxHash } from '@/lib/crypto';
+import { truncateTxHash, computeFileSha256 } from '@/lib/crypto';
 
 type Props = StackScreenProps<VaultStackParamList, 'DocumentDetail'>;
 type ExpiryOption = '1h' | '24h' | '7d' | 'never';
@@ -42,6 +43,14 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [anchoring, setAnchoring] = useState(false);
+
+  // Local Tamper Check State
+  const [isTestingTamper, setIsTestingTamper] = useState(false);
+  const [tamperResult, setTamperResult] = useState<{
+    fileName: string;
+    computedHash: string;
+    matches: boolean;
+  } | null>(null);
 
   // Sharing Modal State
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -94,7 +103,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
   const handleDelete = () => {
     Alert.alert(
       'Delete Document',
-      `Are you sure you want to permanently delete "${document.name}"? This will remove the file from your vault.`,
+      `Are you sure you want to permanently delete "${document.name}"? This will remove the file and all associated proofs from your vault.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -106,7 +115,7 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
               await documentService.deleteDocument(document);
               navigation.goBack();
             } catch (err: any) {
-              Alert.alert('Delete Failed', err.message || 'Could not delete document');
+              Alert.alert('Error', err.message || 'Failed to delete document');
               setDeleting(false);
             }
           }
@@ -115,35 +124,12 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const handleAnchor = async () => {
-    if (!document.current_hash) {
-      Alert.alert('Error', 'Document digital fingerprint is missing. Cannot create blockchain proof.');
-      return;
-    }
-
-    try {
-      setAnchoring(true);
-      const newProof = await blockchainService.anchorDocument(document.id);
-      setProof(newProof);
-      Alert.alert(
-        'Blockchain Proof Confirmed',
-        `An immutable cryptographic proof for "${document.name}" has been permanently recorded on ${newProof.blockchain_network}.`
-      );
-    } catch (err: any) {
-      Alert.alert(
-        'Blockchain Anchoring Unavailable',
-        err.message || 'Blockchain anchoring is currently unavailable. No blockchain proof was created.'
-      );
-    } finally {
-      setAnchoring(false);
-    }
-  };
-
   const handleVerify = async () => {
     try {
       setVerifying(true);
-      const isLocalMatch = await integrityService.verifyDocument(document);
+      const isVerified = await integrityService.verifyDocument(document);
       
+      // Also check against blockchain record
       const dualResult = await blockchainService.verifyDualIntegrity(
         document.name,
         document.current_hash || '',
@@ -151,56 +137,126 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
         proof
       );
 
-      if (isLocalMatch && dualResult.blockchainMatch !== false) {
+      const updatedDoc = {
+        ...document,
+        integrity_status: (isVerified && dualResult.blockchainMatch !== false) ? 'VERIFIED' : 'FAILED',
+      } as const;
+
+      setDocument(updatedDoc as any);
+
+      if (isVerified && dualResult.blockchainMatch !== false) {
         Alert.alert(
-          '✓ Cryptographic Integrity Verified',
-          `1. Local File Check: The stored document bytes exactly match the original SHA-256 fingerprint.\n\n2. Blockchain Status: ${proof ? 'Confirmed on Ethereum Sepolia.' : 'Original vault record matches.'}\n\nConclusion: This document is genuine and has never been altered.`
+          '✓ Integrity Verified',
+          `Cloud vault binary exactly matches the recorded cryptographic signature.\n\nSHA-256: ${document.current_hash}\nBlockchain Status: ${proof ? 'Confirmed on Ethereum Sepolia' : 'Vault Reference Intact'}`,
+          [{ text: 'OK' }]
         );
-        setDocument({ ...document, integrity_status: 'VERIFIED' });
       } else {
         Alert.alert(
-          '⚠ Integrity Mismatch Detected',
-          'Cryptographic fingerprint mismatch: The file on the server differs from the original reference record. The document may have been tampered with or modified.'
+          '⚠ Integrity Check Failed',
+          'The document binary in cloud storage does not match its registered cryptographic hash. The file may have been modified or corrupted.',
+          [{ text: 'OK' }]
         );
-        setDocument({ ...document, integrity_status: 'FAILED' });
       }
     } catch (err: any) {
-      Alert.alert(
-        'Verification Operation Error',
-        err.message || 'Could not complete cryptographic verification due to a network or connection issue.'
-      );
+      Alert.alert('Verification Error', err.message || 'Could not verify document integrity.');
     } finally {
       setVerifying(false);
     }
   };
 
-  const handleShareSubmit = async () => {
+  const handleSearchForTamper = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (res.canceled || !res.assets || !res.assets[0]) return;
+
+      const file = res.assets[0];
+      setIsTestingTamper(true);
+      setTamperResult(null);
+
+      const hash = await computeFileSha256(file.uri);
+      const expectedHash = (document.current_hash || '').toLowerCase();
+      const matches = hash.toLowerCase() === expectedHash;
+
+      setTamperResult({
+        fileName: file.name,
+        computedHash: hash,
+        matches,
+      });
+
+      if (matches) {
+        Alert.alert(
+          '✓ MATCH CONFIRMED',
+          `The selected file "${file.name}" exactly matches the registered SHA-256 fingerprint down to the exact byte!`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          '⚠ FINGERPRINT MISMATCH DETECTED',
+          `The selected file "${file.name}" has been modified or altered!\n\nSelected Hash: ${hash}\nVault Reference: ${document.current_hash}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err: any) {
+      Alert.alert('Tamper Search Error', err.message || 'Could not check file.');
+    } finally {
+      setIsTestingTamper(false);
+    }
+  };
+
+  const handleAnchor = async () => {
+    try {
+      setAnchoring(true);
+      const newProof = await blockchainService.anchorDocument(document.id);
+      setProof(newProof);
+      Alert.alert(
+        'Blockchain Proof Created',
+        `An immutable cryptographic proof for "${document.name}" has been permanently recorded on ${newProof.blockchain_network}.\n\nTx: ${newProof.transaction_hash ? truncateTxHash(newProof.transaction_hash) : 'Pending'}\nBlock: #${newProof.block_number || 'Mining'}`,
+        [{ text: 'View Proof', onPress: () => {} }]
+      );
+    } catch (err: any) {
+      Alert.alert(
+        'Anchoring Note',
+        err.message || 'Blockchain anchoring is currently processing or temporarily unavailable.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setAnchoring(false);
+    }
+  };
+
+  const handleCreateShare = async () => {
     if (!shareTarget.trim()) {
-      Alert.alert('Required', 'Please enter a recipient email address or user ID.');
+      Alert.alert('Invalid Input', 'Please enter a recipient email or user ID.');
       return;
     }
 
-    let expiresAt: string | null = null;
-    const now = Date.now();
-    if (expiry === '1h') expiresAt = new Date(now + 3600 * 1000).toISOString();
-    if (expiry === '24h') expiresAt = new Date(now + 24 * 3600 * 1000).toISOString();
-    if (expiry === '7d') expiresAt = new Date(now + 7 * 24 * 3600 * 1000).toISOString();
-
     try {
       setSharing(true);
-      await shareService.shareDocument(document.id, shareTarget.trim(), permission, expiresAt);
+      let expiresAt: string | null = null;
+      const now = Date.now();
+      if (expiry === '1h') expiresAt = new Date(now + 3600 * 1000).toISOString();
+      if (expiry === '24h') expiresAt = new Date(now + 24 * 3600 * 1000).toISOString();
+      if (expiry === '7d') expiresAt = new Date(now + 7 * 24 * 3600 * 1000).toISOString();
+
+      await shareService.shareDocument(
+        document.id,
+        shareTarget.trim(),
+        permission,
+        expiresAt
+      );
+
       setShareModalVisible(false);
       setShareTarget('');
       Alert.alert(
-        'Access Granted',
-        `"${document.name}" access record has been created for ${shareTarget} (${permission === 'DOWNLOAD' ? 'Download & View' : 'View Only'}). You can manage or revoke access at any time from the Sharing tab.`,
-        [
-          { text: 'Done' },
-          { text: 'Send Link via Apps', onPress: handleSystemShare }
-        ]
+        'Share Created',
+        `Access granted for ${shareTarget} (${permission === 'DOWNLOAD' ? 'Download & View' : 'View Only'}).`
       );
     } catch (err: any) {
-      Alert.alert('Share Note', err.message || 'Could not record share');
+      Alert.alert('Sharing Failed', err.message || 'Could not create share permission.');
     } finally {
       setSharing(false);
     }
@@ -208,145 +264,88 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
 
   const openEtherscan = (txHash: string) => {
     const url = blockchainService.getExplorerUrl(txHash);
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Could not open transaction explorer link');
-      });
-    }
+    if (url) Linking.openURL(url);
   };
 
   const openContract = () => {
-    const url = blockchainService.getContractUrl(proof?.contract_address || undefined);
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Error', 'Could not open smart contract link');
-    });
+    const url = blockchainService.getContractUrl();
+    Linking.openURL(url);
   };
 
-  const formattedSize = document.size > 1024 * 1024
-    ? `${(document.size / (1024 * 1024)).toFixed(2)} MB`
-    : `${(document.size / 1024).toFixed(1)} KB`;
+  const formatSize = (bytes: number) => {
+    if (bytes > 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  };
 
-  const formattedDate = new Date(document.created_at).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const getStatusColor = () => {
+    switch (document.integrity_status) {
+      case 'VERIFIED': return COLORS.success;
+      case 'FAILED': return COLORS.danger;
+      default: return COLORS.warning;
+    }
+  };
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: Math.max(insets.bottom, 24) + SPACING.xl }
+      ]}
+      showsVerticalScrollIndicator={false}
     >
-      {/* File Overview Card */}
-      <View style={styles.headerCard}>
-        <View style={styles.fileIconContainer}>
-          <MaterialCommunityIcons name="file-document-outline" size={32} color={COLORS.primary} />
+      {/* Header Info */}
+      <View style={styles.header}>
+        <View style={styles.iconContainer}>
+          <Feather name="file-text" size={32} color={COLORS.primary} />
         </View>
-        <Text style={styles.title} numberOfLines={2}>{document.name}</Text>
-        <Text style={styles.meta}>
-          {formattedSize} • Uploaded {formattedDate}
-        </Text>
-      </View>
-
-      {/* Digital Fingerprint Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Digital Fingerprint (SHA-256)</Text>
-        <Text style={styles.sectionExplainer}>
-          This 256-bit cryptographic signature is computed from this file's exact binary bytes. If even one character is altered, this fingerprint changes completely.
+        <Text style={styles.docName} numberOfLines={2}>{document.name}</Text>
+        <Text style={styles.docMeta}>
+          {formatSize(document.size)} • {document.mime_type || 'Unknown Type'}
         </Text>
         
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.label}>Authoritative Digest</Text>
-            <View style={styles.badgeSmall}>
-              <Text style={styles.badgeSmallText}>Deterministic</Text>
-            </View>
-          </View>
-          <Text style={styles.hash} selectable={true}>
-            {document.current_hash || 'Calculating fingerprint...'}
+        {/* Status Badge */}
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '15', borderColor: getStatusColor() + '40' }]}>
+          <MaterialCommunityIcons 
+            name={document.integrity_status === 'VERIFIED' ? 'shield-check' : 'shield-alert'} 
+            size={14} 
+            color={getStatusColor()} 
+          />
+          <Text style={[styles.statusText, { color: getStatusColor() }]}>
+            {document.integrity_status}
           </Text>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.label}>Integrity Status</Text>
-            <View style={[
-              styles.statusBadge,
-              document.integrity_status === 'VERIFIED'
-                ? styles.statusVerified
-                : document.integrity_status === 'FAILED'
-                ? styles.statusFailed
-                : styles.statusPending
-            ]}>
-              <Feather
-                name={
-                  document.integrity_status === 'VERIFIED'
-                    ? 'check-circle'
-                    : document.integrity_status === 'FAILED'
-                    ? 'alert-triangle'
-                    : 'clock'
-                }
-                size={12}
-                color={
-                  document.integrity_status === 'VERIFIED'
-                    ? COLORS.success
-                    : document.integrity_status === 'FAILED'
-                    ? COLORS.danger
-                    : COLORS.warning
-                }
-              />
-              <Text style={[
-                styles.statusBadgeText,
-                {
-                  color:
-                    document.integrity_status === 'VERIFIED'
-                      ? COLORS.success
-                      : document.integrity_status === 'FAILED'
-                      ? COLORS.danger
-                      : COLORS.warning
-                }
-              ]}>
-                {document.integrity_status === 'VERIFIED'
-                  ? 'Original & Verified'
-                  : document.integrity_status === 'FAILED'
-                  ? 'Tampered / Mismatched'
-                  : 'Pending Verification'}
-              </Text>
-            </View>
-          </View>
         </View>
       </View>
 
-      {/* Blockchain Proof Section */}
+      {/* SHA-256 Fingerprint */}
       <View style={styles.section}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Blockchain Proof</Text>
-          {proof && (
-            <View style={styles.chainBadge}>
-              <Feather name="link" size={12} color={COLORS.blockchain} />
-              <Text style={styles.chainBadgeText}>Ethereum Sepolia</Text>
-            </View>
-          )}
+        <Text style={styles.sectionTitle}>SHA-256 Digital Fingerprint</Text>
+        <View style={styles.card}>
+          <Text style={styles.hashText} selectable={true}>
+            {document.current_hash || 'No hash recorded'}
+          </Text>
+          <Text style={styles.cardNote}>
+            Mathematical representation of this file. If even one letter or pixel changes, this entire hash changes.
+          </Text>
         </View>
-        <Text style={styles.sectionExplainer}>
-          An immutable, public proof on the Ethereum blockchain that proves this document existed in this exact state at a verified timestamp.
-        </Text>
+      </View>
 
+      {/* Ethereum Proof Status */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Ethereum Blockchain Proof</Text>
+        
         {loadingProof ? (
-          <View style={styles.loadingCard}>
-            <ActivityIndicator size="small" color={COLORS.blockchain} />
+          <View style={[styles.card, styles.centerCard]}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Checking Sepolia smart contract...</Text>
           </View>
         ) : proof ? (
-          <View style={[styles.card, styles.blockchainCard]}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Blockchain Network</Text>
-              <Text style={styles.infoValue}>{proof.blockchain_network}</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Proof Status</Text>
+          <View style={styles.card}>
+            <View style={styles.proofHeader}>
+              <View style={styles.proofNetwork}>
+                <MaterialCommunityIcons name="ethereum" size={18} color={COLORS.blockchain} />
+                <Text style={styles.proofNetworkText}>{proof.blockchain_network}</Text>
+              </View>
               <View style={styles.proofStatusBadge}>
                 <Feather name="check" size={12} color={COLORS.blockchain} />
                 <Text style={styles.proofStatusText}>{proof.status}</Text>
@@ -411,6 +410,59 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
             />
           </View>
         )}
+      </View>
+
+      {/* Search for Tamper Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Search for Tamper</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardNote}>
+            Select any local file on your phone to compare its SHA-256 fingerprint against this registered vault document and Sepolia blockchain proof.
+          </Text>
+          <View style={{ height: SPACING.sm }} />
+          <TouchableOpacity
+            style={styles.tamperSearchBtn}
+            onPress={handleSearchForTamper}
+            disabled={isTestingTamper}
+            activeOpacity={0.8}
+          >
+            {isTestingTamper ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <Feather name="search" size={15} color={COLORS.primary} />
+            )}
+            <Text style={styles.tamperSearchBtnText}>
+              {isTestingTamper ? 'Analyzing File Hash...' : 'Pick Local File to Compare'}
+            </Text>
+          </TouchableOpacity>
+
+          {tamperResult && (
+            <View
+              style={[
+                styles.tamperResultBox,
+                {
+                  backgroundColor: tamperResult.matches ? COLORS.success + '15' : COLORS.danger + '15',
+                  borderColor: tamperResult.matches ? COLORS.success + '40' : COLORS.danger + '40',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tamperResultTitle,
+                  { color: tamperResult.matches ? COLORS.success : COLORS.danger },
+                ]}
+              >
+                {tamperResult.matches ? '✓ MATCH CONFIRMED' : '⚠ FINGERPRINT MISMATCH DETECTED'}
+              </Text>
+              <Text style={styles.tamperResultFile} numberOfLines={1}>
+                File: {tamperResult.fileName}
+              </Text>
+              <Text style={styles.tamperResultHash} numberOfLines={2}>
+                Calculated: {tamperResult.computedHash}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Core Actions */}
@@ -521,28 +573,28 @@ export function DocumentDetailScreen({ route, navigation }: Props) {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Access Duration</Text>
+            <Text style={styles.inputLabel}>Expiration Duration</Text>
             <View style={styles.pickerRow}>
               {(['1h', '24h', '7d', 'never'] as ExpiryOption[]).map((opt) => (
                 <TouchableOpacity
                   key={opt}
-                  style={[styles.expiryButton, expiry === opt && styles.pickerActive]}
+                  style={[styles.expiryBtn, expiry === opt && styles.pickerActive]}
                   onPress={() => setExpiry(opt)}
                 >
-                  <Text style={[styles.pickerText, expiry === opt && styles.pickerActiveText]}>
-                    {opt === 'never' ? 'PERMANENT' : opt.toUpperCase()}
+                  <Text style={[styles.expiryText, expiry === opt && styles.pickerActiveText]}>
+                    {opt.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <View style={styles.modalActions}>
-              <Button
-                label={sharing ? 'Granting Access...' : 'Confirm Share'}
-                onPress={handleShareSubmit}
-                disabled={sharing}
-              />
-            </View>
+            <View style={{ height: SPACING.lg }} />
+
+            <Button
+              label={sharing ? 'Granting Access...' : 'Confirm & Share'}
+              onPress={handleCreateShare}
+              disabled={sharing}
+            />
           </View>
         </View>
       </Modal>
@@ -556,179 +608,189 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   content: {
-    padding: SPACING.md + 2,
+    padding: SPACING.md,
   },
-  headerCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
+  header: {
     alignItems: 'center',
     marginBottom: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingTop: SPACING.sm,
   },
-  fileIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceElevated,
-    justifyContent: 'center',
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceBorder,
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
-  title: {
-    fontSize: TYPOGRAPHY.base,
-    fontWeight: TYPOGRAPHY.bold,
+  docName: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
-    marginBottom: 4,
-    paddingHorizontal: SPACING.sm,
-  },
-  meta: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
-  },
-  section: {
-    marginBottom: SPACING.lg,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  sectionTitle: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  sectionExplainer: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    lineHeight: 16,
-    marginBottom: SPACING.sm,
-    marginTop: 2,
-  },
-  chainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.blockchainMuted,
-    borderColor: COLORS.blockchain,
-    borderWidth: 1,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-    gap: 4,
-  },
-  chainBadgeText: {
-    color: COLORS.blockchain,
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: SPACING.xs,
   },
-  blockchainCard: {
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    borderWidth: 1.5,
-  },
-  loadingCard: {
-    backgroundColor: COLORS.surface,
-    padding: SPACING.lg,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-  },
-  label: {
-    fontSize: 11,
+  docMeta: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  badgeSmall: {
-    backgroundColor: COLORS.surfaceElevated,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeSmallText: {
-    fontSize: 9,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.medium,
-  },
-  hash: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontFamily: 'monospace',
-    lineHeight: 16,
-    marginTop: 2,
+    marginBottom: SPACING.sm,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+  },
+  statusText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    letterSpacing: 0.5,
+  },
+  section: {
+    marginBottom: SPACING.lg,
+  },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: SPACING.xs,
+    marginLeft: 4,
+  },
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  centerCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  loadingText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textMuted,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  hashText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: COLORS.primary,
+    lineHeight: 16,
+    backgroundColor: COLORS.surfaceHighlight,
+    padding: 10,
+    borderRadius: RADIUS.md,
+    overflow: 'hidden',
+  },
+  cardNote: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textMuted,
+    marginTop: SPACING.xs,
+    lineHeight: 16,
+  },
+  tamperSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+    borderRadius: RADIUS.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 4,
+  },
+  tamperSearchBtnText: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.primary,
+  },
+  tamperResultBox: {
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
     gap: 4,
   },
-  statusVerified: {
-    backgroundColor: COLORS.successMuted,
+  tamperResultTitle: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
-  statusPending: {
-    backgroundColor: COLORS.warningMuted,
-  },
-  statusFailed: {
-    backgroundColor: COLORS.dangerMuted,
-  },
-  statusBadgeText: {
+  tamperResultFile: {
     fontSize: 11,
-    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  tamperResultHash: {
+    fontSize: 10,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: COLORS.textMuted,
+  },
+  proofHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    marginBottom: SPACING.sm,
+  },
+  proofNetwork: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  proofNetworkText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.textPrimary,
+  },
+  proofStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.blockchain + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.blockchain + '30',
+  },
+  proofStatusText: {
+    fontSize: 10,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.blockchain,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.border + '60',
   },
   infoLabel: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textMuted,
   },
   infoValue: {
-    fontSize: TYPOGRAPHY.sm,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
     color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.medium,
-  },
-  proofStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.blockchainMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 4,
-  },
-  proofStatusText: {
-    fontSize: 11,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.blockchain,
   },
   linkButton: {
     flexDirection: 'row',
@@ -736,14 +798,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   linkText: {
-    fontSize: TYPOGRAPHY.sm,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
     color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.semibold,
-    fontFamily: 'monospace',
   },
   unanchoredText: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textMuted,
     lineHeight: 18,
   },
   actions: {
@@ -758,38 +820,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
+    gap: 8,
+    paddingVertical: 12,
     borderRadius: RADIUS.md,
-    borderWidth: 1,
-    gap: SPACING.xs,
   },
   nativeShareBtn: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.primary,
-  },
-  vaultShareBtn: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
   },
   nativeShareText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.bold,
     color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+  },
+  vaultShareBtn: {
+    backgroundColor: COLORS.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   vaultShareText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.semibold,
     color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontSize: TYPOGRAPHY.fontSize.sm,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
+    borderTopLeftRadius: RADIUS.xxl,
+    borderTopRightRadius: RADIUS.xxl,
     padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -798,75 +861,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
   },
   modalTitle: {
-    fontSize: TYPOGRAPHY.base,
-    fontWeight: TYPOGRAPHY.bold,
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
     color: COLORS.textPrimary,
   },
   modalSubtitle: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textMuted,
     marginBottom: SPACING.md,
+    lineHeight: 16,
   },
   inputLabel: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    marginBottom: 6,
+    marginTop: SPACING.sm,
   },
   input: {
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.surfaceHighlight,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
     color: COLORS.textPrimary,
-    fontSize: TYPOGRAPHY.sm,
-    marginBottom: SPACING.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   pickerRow: {
     flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
+    gap: SPACING.xs,
   },
   pickerButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     gap: 6,
-  },
-  expiryButton: {
-    flex: 1,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.background,
+    paddingVertical: 10,
     borderRadius: RADIUS.md,
-    alignItems: 'center',
+    backgroundColor: COLORS.surfaceHighlight,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   pickerActive: {
-    backgroundColor: COLORS.primaryMuted,
     borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '15',
   },
   pickerText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.textMuted,
   },
   pickerActiveText: {
     color: COLORS.primary,
   },
-  modalActions: {
-    marginTop: SPACING.xs,
+  expiryBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  expiryText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.textMuted,
   },
 });

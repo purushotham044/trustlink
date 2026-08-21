@@ -31,7 +31,7 @@ async function main() {
   const source = fs.readFileSync(contractPath, 'utf8');
 
   console.log('📦 1. Compiling DocumentRegistry.sol with solc 0.8.20...');
-  
+
   const input = {
     language: 'Solidity',
     sources: {
