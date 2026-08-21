@@ -164,7 +164,7 @@ export function VaultScreen({ route, navigation }: Props) {
               
               for (const item of selectedList) {
                 if (item.type === 'folder') {
-                  await folderService.deleteFolder(item.data.id, true);
+                  await folderService.deleteFolder(item.data.id);
                 } else {
                   await documentService.deleteDocument(item.data);
                 }
@@ -255,7 +255,11 @@ export function VaultScreen({ route, navigation }: Props) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await folderService.deleteFolder(folder.id, cascadeDeleteFiles);
+              if (cascadeDeleteFiles) {
+                await folderService.deleteFolder(folder.id);
+              } else {
+                await folderService.deleteFolderPreservingFiles(folder.id);
+              }
               loadVaultContents();
             } catch (err: any) {
               Alert.alert('Delete Failed', err.message || 'Could not delete folder.');

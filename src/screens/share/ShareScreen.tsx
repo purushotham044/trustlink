@@ -61,7 +61,7 @@ export function ShareScreen() {
   const handleRevoke = (share: ExtendedDocumentShare) => {
     Alert.alert(
       'Revoke Share Access',
-      `Are you sure you want to revoke access to "${share.document?.name || 'this document'}" for ${share.shared_with_email || 'the recipient'}?`,
+      `Are you sure you want to revoke access to "${share.document?.name || 'this document'}" for ${(share as any).shared_with_email || share.shared_with_id || 'the recipient'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

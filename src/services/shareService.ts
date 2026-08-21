@@ -20,7 +20,7 @@ export const shareService = {
    */
   async shareViaSystem(document: Document): Promise<boolean> {
     try {
-      const downloadUrl = await documentService.getDownloadUrl(document.storage_path);
+      const downloadUrl = await documentService.getSignedUrl(document.storage_path);
       const shareMessage = `🔒 Verified Document via TrustLink:\n\n📄 File: ${document.name}\n🔑 SHA-256 Fingerprint:\n${document.current_hash || 'Verified'}\n\n📥 Download Link (Valid for 60s):\n${downloadUrl}\n\nVerified on Ethereum Sepolia Blockchain.`;
 
       const result = await NativeShare.share(

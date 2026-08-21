@@ -1,10 +1,30 @@
 // ============================================================
-// TrustLink — Shared TypeScript Types
+// TrustLink — TypeScript Type Definitions
 // ============================================================
 
-// ── Auth ────────────────────────────────────────────────────
+export type IntegrityStatus = 'VERIFIED' | 'PENDING' | 'FAILED';
 
-export interface UserProfile {
+export type BlockchainStatus = 'PENDING' | 'CONFIRMED' | 'FAILED';
+
+export type SharePermission = 'VIEW' | 'DOWNLOAD';
+
+export type AuditAction =
+  | 'DOCUMENT_UPLOADED'
+  | 'DOCUMENT_DOWNLOADED'
+  | 'DOCUMENT_VIEWED'
+  | 'DOCUMENT_RENAMED'
+  | 'DOCUMENT_MOVED'
+  | 'DOCUMENT_DELETED'
+  | 'DOCUMENT_SHARED'
+  | 'SHARE_REVOKED'
+  | 'DOCUMENT_VERIFIED'
+  | 'HASH_CREATED'
+  | 'BLOCKCHAIN_ANCHORED'
+  | 'BLOCKCHAIN_ANCHOR_FAILED';
+
+// ── Database Entities ────────────────────────────────────────
+
+export interface Profile {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
@@ -12,36 +32,30 @@ export interface UserProfile {
   updated_at: string;
 }
 
-// ── Folders ─────────────────────────────────────────────────
+export type UserProfile = Profile;
 
 export interface Folder {
   id: string;
   owner_id: string;
-  parent_folder_id: string | null;
+  parent_id: string | null;
   name: string;
   created_at: string;
   updated_at: string;
 }
-
-// ── Documents ────────────────────────────────────────────────
-
-export type IntegrityStatus = 'PENDING' | 'VERIFIED' | 'FAILED';
 
 export interface Document {
   id: string;
   owner_id: string;
   folder_id: string | null;
   name: string;
-  storage_path: string;
   mime_type: string;
   size: number;
+  storage_path: string;
   current_hash: string | null;
   integrity_status: IntegrityStatus;
   created_at: string;
   updated_at: string;
 }
-
-// ── Integrity Records ────────────────────────────────────────
 
 export interface IntegrityRecord {
   id: string;
@@ -52,10 +66,6 @@ export interface IntegrityRecord {
   version_reference: number;
 }
 
-// ── Blockchain Proofs ────────────────────────────────────────
-
-export type BlockchainProofStatus = 'PENDING' | 'CONFIRMED' | 'FAILED';
-
 export interface BlockchainProof {
   id: string;
   document_id: string;
@@ -65,13 +75,9 @@ export interface BlockchainProof {
   block_number: number | null;
   contract_address: string | null;
   anchored_at: string | null;
-  status: BlockchainProofStatus;
+  status: BlockchainStatus;
   created_at: string;
 }
-
-// ── Document Shares ──────────────────────────────────────────
-
-export type SharePermission = 'VIEW' | 'DOWNLOAD';
 
 export interface DocumentShare {
   id: string;
@@ -82,29 +88,8 @@ export interface DocumentShare {
   expires_at: string | null;
   revoked_at: string | null;
   created_at: string;
+  document?: Document;
 }
-
-// ── Audit Logs ───────────────────────────────────────────────
-
-export type AuditAction =
-  | 'USER_LOGIN'
-  | 'USER_LOGOUT'
-  | 'USER_REGISTERED'
-  | 'FOLDER_CREATED'
-  | 'FOLDER_RENAMED'
-  | 'FOLDER_DELETED'
-  | 'DOCUMENT_UPLOADED'
-  | 'DOCUMENT_VIEWED'
-  | 'DOCUMENT_DOWNLOADED'
-  | 'DOCUMENT_RENAMED'
-  | 'DOCUMENT_MOVED'
-  | 'DOCUMENT_DELETED'
-  | 'DOCUMENT_SHARED'
-  | 'SHARE_REVOKED'
-  | 'DOCUMENT_VERIFIED'
-  | 'HASH_CREATED'
-  | 'BLOCKCHAIN_ANCHORED'
-  | 'BLOCKCHAIN_ANCHOR_FAILED';
 
 export interface AuditLog {
   id: string;
@@ -129,12 +114,18 @@ export type VerificationLevel = 'TRUSTLINK' | 'BLOCKCHAIN' | 'BOTH';
 
 export interface VerificationResult {
   documentName: string;
-  currentHash: string;
-  storedHash: string | null;
-  blockchainHash: string | null;
-  trustlinkMatch: boolean;
+  currentHash?: string;
+  localHash?: string;
+  storedHash?: string | null;
+  databaseHash?: string | null;
+  blockchainHash?: string | null;
+  trustlinkMatch?: boolean;
+  dbMatch?: boolean;
   blockchainMatch: boolean | null;
-  blockchainProof: BlockchainProof | null;
+  blockchainProof?: BlockchainProof | null;
+  blockchainNetwork?: string | null;
+  transactionHash?: string | null;
+  blockNumber?: number | null;
   overallVerified: boolean;
   verifiedAt: string;
 }

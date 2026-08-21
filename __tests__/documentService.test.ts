@@ -18,7 +18,7 @@ function validateFileSize(bytes: number): boolean {
 }
 
 function validateMimeType(mime: string): boolean {
-  return ALLOWED_MIME_TYPES.includes(mime);
+  return (ALLOWED_MIME_TYPES as readonly string[]).includes(mime);
 }
 
 describe('Document Vault & Storage Service (35 Test Cases)', () => {
